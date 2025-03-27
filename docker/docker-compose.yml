@@ -1,0 +1,79 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:14
+    container_name: pubg-tournament-db
+    restart: always
+    environment:
+      POSTGRES_USER: pubgadmin
+      POSTGRES_PASSWORD: your_secure_password
+      POSTGRES_DB: pubg_tournaments
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - pubg-network
+      
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pubg-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin_secure_password
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - pubg-network
+      
+  redis:
+    image: redis:alpine
+    container_name: pubg-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - pubg-network
+      
+  # Uncomment when ready to deploy the Node.js server
+  # api:
+  #   build:
+  #     context: ../server
+  #     dockerfile: Dockerfile
+  #   container_name: pubg-api
+  #   restart: always
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #   ports:
+  #     - "5000:5000"
+  #   environment:
+  #     NODE_ENV: development
+  #     DB_HOST: postgres
+  #     DB_PORT: 5432
+  #     DB_USER: pubgadmin
+  #     DB_PASSWORD: your_secure_password
+  #     DB_NAME: pubg_tournaments
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: 6379
+  #     PORT: 5000
+  #   volumes:
+  #     - ../server:/app
+  #     - /app/node_modules
+  #   networks:
+  #     - pubg-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  pubg-network:
+    driver: bridge

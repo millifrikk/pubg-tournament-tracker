@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authentication System Status</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 10px;
+    }
+    .status-card {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 20px;
+      margin-bottom: 20px;
+      background-color: #f9f9f9;
+    }
+    .status-item {
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dashed #eee;
+      padding-bottom: 5px;
+    }
+    .label {
+      font-weight: bold;
+    }
+    .success {
+      color: green;
+    }
+    .error {
+      color: red;
+    }
+    .warning {
+      color: orange;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 5px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button.secondary {
+      background-color: #2196F3;
+    }
+    button.secondary:hover {
+      background-color: #0b7dda;
+    }
+    button.warning {
+      background-color: #ff9800;
+    }
+    button.warning:hover {
+      background-color: #e68a00;
+    }
+    .action-panel {
+      margin-top: 20px;
+    }
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .login-test-container {
+      margin-top: 30px;
+      border-top: 1px solid #ddd;
+      padding-top: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .success-result {
+      background-color: #dff0d8;
+      border: 1px solid #d6e9c6;
+    }
+    .error-result {
+      background-color: #f2dede;
+      border: 1px solid #ebccd1;
+    }
+  </style>
+</head>
+<body>
+  <h1>Authentication System Status</h1>
+  
+  <div class="status-card" id="status-container">
+    <h2>Checking system status...</h2>
+    <p>Please wait while we check the authentication system components.</p>
+  </div>
+  
+  <div class="action-panel">
+    <button id="check-status">Refresh Status</button>
+    <button id="reset-admin" class="warning">Reset Admin Password</button>
+    <button id="go-to-login" class="secondary">Go to Login Page</button>
+  </div>
+  
+  <div class="login-test-container">
+    <h2>Test Login</h2>
+    <p>Use this form to test the login functionality directly:</p>
+    
+    <div class="form-group">
+      <label for="username">Username or Email</label>
+      <input type="text" id="username" placeholder="Enter username or email" value="admin">
+    </div>
+    
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Enter password" value="admin123">
+    </div>
+    
+    <button id="test-login">Test Login</button>
+    
+    <div id="login-result"></div>
+  </div>
+
+  <script>
+    // DOM elements
+    const statusContainer = document.getElementById('status-container');
+    const checkStatusBtn = document.getElementById('check-status');
+    const resetAdminBtn = document.getElementById('reset-admin');
+    const goToLoginBtn = document.getElementById('go-to-login');
+    const testLoginBtn = document.getElementById('test-login');
+    const loginResult = document.getElementById('login-result');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    
+    // Check authentication status
+    async function checkStatus() {
+      statusContainer.innerHTML = '<h2>Checking system status...</h2><p>Please wait while we check the authentication system components.</p>';
+      
+      try {
+        const response = await fetch('/api/auth/status');
+        const status = await response.json();
+        
+        let html = '<h2>System Status</h2>';
+        
+        // Auth Configuration
+        html += '<h3>Authentication Configuration</h3>';
+        html += '<div class="status-item">';
+        html += '<span class="label">JWT Secret:</span>';
+        if (status.auth.jwtSecret === 'configured') {
+          html += '<span class="success">Configured</span>';
+        } else {
+          html += '<span class="error">Missing</span>';
+        }
+        html += '</div>';
+        
+        html += '<div class="status-item">';
+        html += '<span class="label">JWT Expiry:</span>';
+        html += `<span>${status.auth.jwtExpiry}</span>`;
+        html += '</div>';
+        
+        // Database Status
+        html += '<h3>Database Status</h3>';
+        html += '<div class="status-item">';
+        html += '<span class="label">Connection:</span>';
+        if (status.database.connected) {
+          html += '<span class="success">Connected</span>';
+        } else {
+          html += '<span class="error">Not Connected</span>';
+        }
+        html += '</div>';
+        
+        html += '<div class="status-item">';
+        html += '<span class="label">Tables Exist:</span>';
+        if (status.database.tablesExist) {
+          html += '<span class="success">Yes</span>';
+        } else {
+          html += '<span class="error">No</span>';
+        }
+        html += '</div>';
+        
+        html += '<div class="status-item">';
+        html += '<span class="label">Admin User:</span>';
+        if (status.database.adminUserExists) {
+          html += '<span class="success">Exists</span>';
+        } else {
+          html += '<span class="error">Missing</span>';
+        }
+        html += '</div>';
+        
+        if (status.database.error) {
+          html += '<div class="status-item">';
+          html += '<span class="label">Database Error:</span>';
+          html += `<span class="error">${status.database.error}</span>`;
+          html += '</div>';
+        }
+        
+        // System Information
+        html += '<h3>System Information</h3>';
+        html += '<div class="status-item">';
+        html += '<span class="label">Environment:</span>';
+        html += `<span>${status.system.environment}</span>`;
+        html += '</div>';
+        
+        html += '<div class="status-item">';
+        html += '<span class="label">Server Time:</span>';
+        html += `<span>${new Date(status.system.serverTime).toLocaleString()}</span>`;
+        html += '</div>';
+        
+        html += '<div class="status-item">';
+        html += '<span class="label">Node Version:</span>';
+        html += `<span>${status.system.version}</span>`;
+        html += '</div>';
+        
+        // Overall Status
+        html += '<h3>Overall Status</h3>';
+        const isAuthentickationWorking = status.auth.jwtSecret === 'configured' && 
+          status.database.connected && 
+          status.database.tablesExist && 
+          status.database.adminUserExists;
+        
+        html += '<div class="status-item">';
+        html += '<span class="label">Authentication System:</span>';
+        if (isAuthentickationWorking) {
+          html += '<span class="success">Working Properly</span>';
+        } else {
+          html += '<span class="error">Needs Attention</span>';
+        }
+        html += '</div>';
+        
+        // Troubleshooting Tips
+        if (!isAuthentickationWorking) {
+          html += '<h3>Troubleshooting Tips</h3>';
+          html += '<ul>';
+          
+          if (status.auth.jwtSecret !== 'configured') {
+            html += '<li>JWT Secret is missing. Check your environment variables or .env file.</li>';
+          }
+          
+          if (!status.database.connected) {
+            html += '<li>Database connection failed. Check your database configuration and make sure PostgreSQL is running.</li>';
+          }
+          
+          if (!status.database.tablesExist) {
+            html += '<li>Database tables do not exist. You need to run migrations.</li>';
+          }
+          
+          if (!status.database.adminUserExists) {
+            html += '<li>Admin user is missing. You need to run database seeds or click "Reset Admin Password" button.</li>';
+          }
+          
+          html += '</ul>';
+        }
+        
+        statusContainer.innerHTML = html;
+      } catch (error) {
+        console.error('Error checking status:', error);
+        statusContainer.innerHTML = `
+          <h2>Error Checking Status</h2>
+          <p class="error">An error occurred while checking the system status: ${error.message}</p>
+          <p>This could indicate that the API server is not running or is not accessible.</p>
+        `;
+      }
+    }
+    
+    // Reset admin password
+    async function resetAdmin() {
+      try {
+        resetAdminBtn.innerHTML = '<span class="loading"></span> Resetting...';
+        resetAdminBtn.disabled = true;
+        
+        const response = await fetch('/api/auth/reset-admin', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const result = await response.json();
+        
+        alert(result.message || 'Admin password has been reset.');
+        
+        // Refresh status
+        await checkStatus();
+      } catch (error) {
+        console.error('Error resetting admin password:', error);
+        alert(`Error resetting admin password: ${error.message}`);
+      } finally {
+        resetAdminBtn.innerHTML = 'Reset Admin Password';
+        resetAdminBtn.disabled = false;
+      }
+    }
+    
+    // Test login functionality
+    async function testLogin() {
+      try {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+        
+        if (!username || !password) {
+          loginResult.innerHTML = '<div class="error-result">Please enter both username and password.</div>';
+          return;
+        }
+        
+        testLoginBtn.innerHTML = '<span class="loading"></span> Testing...';
+        testLoginBtn.disabled = true;
+        
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            usernameOrEmail: username,
+            password: password
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          loginResult.innerHTML = `
+            <div class="success-result">
+              <h3>Login Successful!</h3>
+              <p>Token received: ${result.token ? 'Yes' : 'No'}</p>
+              <p>User data received: ${result.user ? 'Yes' : 'No'}</p>
+              <pre style="max-height: 200px; overflow: auto; background: #f5f5f5; padding: 10px; border-radius: 4px;">${JSON.stringify(result, null, 2)}</pre>
+            </div>
+          `;
+        } else {
+          loginResult.innerHTML = `
+            <div class="error-result">
+              <h3>Login Failed</h3>
+              <p>${result.error || 'An unknown error occurred'}</p>
+              <pre style="max-height: 200px; overflow: auto; background: #f5f5f5; padding: 10px; border-radius: 4px;">${JSON.stringify(result, null, 2)}</pre>
+            </div>
+          `;
+        }
+      } catch (error) {
+        console.error('Error testing login:', error);
+        loginResult.innerHTML = `
+          <div class="error-result">
+            <h3>Error</h3>
+            <p>An error occurred while testing login: ${error.message}</p>
+          </div>
+        `;
+      } finally {
+        testLoginBtn.innerHTML = 'Test Login';
+        testLoginBtn.disabled = false;
+      }
+    }
+    
+    // Event listeners
+    checkStatusBtn.addEventListener('click', checkStatus);
+    resetAdminBtn.addEventListener('click', resetAdmin);
+    goToLoginBtn.addEventListener('click', () => window.location.href = '/login');
+    testLoginBtn.addEventListener('click', testLogin);
+    
+    // Check status on page load
+    checkStatus();
+  </script>
+</body>
+</html>
