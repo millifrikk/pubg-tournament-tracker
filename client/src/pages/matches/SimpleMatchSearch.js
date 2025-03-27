@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import matchesServiceEnhanced from '../../services/matchesServiceEnhanced';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -6,6 +6,29 @@ import { getMatchType, getMatchTypeClass, formatMatchDate, getRelativeTime } fro
 import '../../styles/matches.css';
 
 const SimpleMatchSearch = ({ matchesService = matchesServiceEnhanced }) => {
+  
+  // Load saved state from sessionStorage on mount
+  useEffect(() => {
+    try {
+      // Check if we have a saved search state
+      const savedState = sessionStorage.getItem('lastMatchSearch');
+      if (savedState) {
+        const { searchForm: savedForm, matches: savedMatches, timestamp } = JSON.parse(savedState);
+        
+        // Only restore if the saved state is relatively fresh (within the last hour)
+        const isStateFresh = Date.now() - timestamp < 3600000; // 1 hour
+        
+        if (isStateFresh) {
+          console.log('Restoring previous search state');
+          setSearchForm(savedForm);
+          setMatches(savedMatches);
+        }
+      }
+    } catch (error) {
+      console.error('Error restoring search state:', error);
+      // Silently fail - just use default state
+    }
+  }, []);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState(null);
@@ -78,6 +101,13 @@ const SimpleMatchSearch = ({ matchesService = matchesServiceEnhanced }) => {
       // Use enhanced service with better reliability
       const response = await matchesService.searchMatches(searchForm);
       setMatches(response.data);
+      
+      // Save search state to sessionStorage
+      sessionStorage.setItem('lastMatchSearch', JSON.stringify({
+        searchForm,
+        matches: response.data,
+        timestamp: Date.now()
+      }));
       
       // Log the source of the data (for debugging)
       if (response.meta && response.meta.source) {

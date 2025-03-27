@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useSocket } from '../../contexts/SocketContext';
-import matchesService from '../../services/matchesService';
+import matchesService from '../../services/matchesServiceEnhanced';
 import LiveMatchFeed from '../../components/common/LiveMatchFeed';
 import MatchHeatmap from '../../components/visualizations/MatchHeatmap';
 import MatchTimeline from '../../components/visualizations/MatchTimeline';
@@ -217,7 +217,19 @@ const MatchDetails = () => {
       <div className="container">
         <div className="match-header">
           <div className="header-content">
-            <h1 className="page-title">Match Details</h1>
+            <div className="header-left">
+              <button 
+                className="back-button" 
+                onClick={() => {
+                  // Navigate back to the correct path
+                  navigate('/matches/search');
+                }}
+                title="Back to search results"
+              >
+                ← Back
+              </button>
+              <h1 className="page-title">Match Details</h1>
+            </div>
             <button 
               className="refresh-button" 
               onClick={handleRefresh} 

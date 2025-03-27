@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import matchesService from '../../services/matchesServiceEnhanced'; // Changed to enhanced service
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -74,6 +75,29 @@ const MatchSearch = () => {
     }));
   };
   
+  // Load saved state from sessionStorage on mount
+  useEffect(() => {
+    try {
+      // Check if we have a saved search state
+      const savedState = sessionStorage.getItem('lastMatchSearch');
+      if (savedState) {
+        const { searchForm: savedForm, matches: savedMatches, timestamp } = JSON.parse(savedState);
+        
+        // Only restore if the saved state is relatively fresh (within the last hour)
+        const isStateFresh = Date.now() - timestamp < 3600000; // 1 hour
+        
+        if (isStateFresh) {
+          console.log('Restoring previous search state');
+          setSearchForm(savedForm);
+          setMatches(savedMatches);
+        }
+      }
+    } catch (error) {
+      console.error('Error restoring search state:', error);
+      // Silently fail - just use default state
+    }
+  }, []);
+
   // Handle search form submission
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -85,6 +109,13 @@ const MatchSearch = () => {
       // Updated error handling and timeout
       const response = await matchesService.searchMatches(searchForm);
       setMatches(response.data);
+      
+      // Save search state to sessionStorage
+      sessionStorage.setItem('lastMatchSearch', JSON.stringify({
+        searchForm,
+        matches: response.data,
+        timestamp: Date.now()
+      }));
     } catch (err) {
       console.error('Error searching matches:', err);
       

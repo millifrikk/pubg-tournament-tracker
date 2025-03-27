@@ -98,6 +98,9 @@ async function startServer() {
 }
 
 // Start the application
+// Verify enhanced PUBG API service
+const pubgApiService = require('./services/pubgApiService');
+console.log('Enhanced PUBG API service loaded with rate limiting:', !!pubgApiService.searchCustomMatches);
 startServer();
 
 // Handle unhandled promise rejections
