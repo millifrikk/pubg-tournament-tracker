@@ -1,17 +1,16 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
+import TeamDetails from '../../components/teams/TeamDetails';
 
-const TeamDetails = () => {
+const TeamDetailsPage = () => {
   const { id } = useParams();
   
   return (
-    <div className="team-details-page">
-      <div className="container">
-        <h1 className="page-title">Team Details (ID: {id})</h1>
-        <p>This page is under construction. It will display team details and players.</p>
-      </div>
+    <div className="container mx-auto px-4 py-6">
+      <h1 className="text-3xl font-bold mb-6">Team Management</h1>
+      <TeamDetails />
     </div>
   );
 };
 
-export default TeamDetails;
+export default TeamDetailsPage;

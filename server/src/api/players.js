@@ -1,32 +1,75 @@
 const express = require('express');
 const router = express.Router();
-const pubgApiService = require('../services/pubgApiService');
+const { db } = require('../db/connection');
+const { authenticateJWT } = require('../middleware/auth');
 
 /**
- * @route GET /api/players/search
- * @desc Search for players by name
+ * @route GET /api/players
+ * @desc Get all players or filter by team
  * @access Public
  */
-router.get('/search', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const { name, platform = 'steam' } = req.query;
+    const { teamId } = req.query;
     
-    if (!name) {
+    let query = db('players')
+      .select('id', 'pubg_id', 'pubg_name', 'name', 'platform', 'team_id', 'created_at', 'updated_at');
+    
+    if (teamId) {
+      query = query.where({ team_id: teamId });
+    }
+    
+    const players = await query;
+    
+    res.json({
+      data: players,
+      meta: {
+        count: players.length
+      }
+    });
+  } catch (error) {
+    console.error('Error getting players:', error);
+    res.status(500).json({ 
+      error: 'Error retrieving players',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/players
+ * @desc Create a new player
+ * @access Private
+ */
+router.post('/', authenticateJWT, async (req, res) => {
+  try {
+    const { pubgName, pubgId, teamId, platform = 'steam' } = req.body;
+    
+    if (!pubgName) {
       return res.status(400).json({ error: 'Player name is required' });
     }
     
-    const playerData = await pubgApiService.getPlayerByName(name, platform);
+    // Create player
+    const [player] = await db('players')
+      .insert({
+        name: pubgName, // For compatibility with existing schema
+        pubg_name: pubgName,
+        pubg_id: pubgId || null,
+        platform,
+        team_id: teamId || null,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .returning('*');
     
-    res.json(playerData);
+    res.status(201).json({
+      message: 'Player created successfully',
+      data: player
+    });
   } catch (error) {
-    console.error('Error searching for player:', error);
-    
-    if (error.response?.status === 404) {
-      return res.status(404).json({ error: 'Player not found' });
-    }
-    
+    console.error('Error creating player:', error);
     res.status(500).json({ 
-      error: 'Error searching for player',
+      error: 'Error creating player',
       details: error.message
     });
   }
@@ -40,18 +83,20 @@ router.get('/search', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { platform = 'steam' } = req.query;
     
-    const playerData = await pubgApiService.getPlayerById(id, platform);
+    const player = await db('players')
+      .where({ id })
+      .first();
     
-    res.json(playerData);
-  } catch (error) {
-    console.error(`Error getting player with ID ${req.params.id}:`, error);
-    
-    if (error.response?.status === 404) {
+    if (!player) {
       return res.status(404).json({ error: 'Player not found' });
     }
     
+    res.json({
+      data: player
+    });
+  } catch (error) {
+    console.error(`Error getting player ${req.params.id}:`, error);
     res.status(500).json({ 
       error: 'Error retrieving player',
       details: error.message
@@ -60,84 +105,108 @@ router.get('/:id', async (req, res) => {
 });
 
 /**
- * @route GET /api/players/:id/matches
- * @desc Get player's match history
- * @access Public
+ * @route PUT /api/players/:id
+ * @desc Update player
+ * @access Private
  */
-router.get('/:id/matches', async (req, res) => {
+router.put('/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
-    const { platform = 'steam', limit = 10 } = req.query;
+    const { pubgName, pubgId, teamId, platform } = req.body;
     
-    // Get player data which includes match IDs
-    const playerData = await pubgApiService.getPlayerById(id, platform);
-    
-    if (!playerData.data.relationships.matches) {
-      return res.json({ data: [] });
+    // Build update object
+    const updateData = {};
+    if (pubgName !== undefined) {
+      updateData.pubg_name = pubgName;
+      updateData.name = pubgName; // Update name field for backwards compatibility
     }
+    if (pubgId !== undefined) updateData.pubg_id = pubgId;
+    if (teamId !== undefined) updateData.team_id = teamId;
+    if (platform !== undefined) updateData.platform = platform;
+    updateData.updated_at = new Date();
     
-    // Extract match IDs
-    const matchIds = playerData.data.relationships.matches.data
-      .slice(0, parseInt(limit, 10))
-      .map(match => match.id);
+    // Update player
+    const [updatedPlayer] = await db('players')
+      .where({ id })
+      .update(updateData)
+      .returning('*');
     
-    // Fetch match data for each ID
-    const matchPromises = matchIds.map(matchId => 
-      pubgApiService.getMatch(matchId, platform)
-        .catch(error => {
-          console.error(`Error fetching match ${matchId}:`, error);
-          return null; // Return null for failed matches
-        })
-    );
-    
-    const matches = await Promise.all(matchPromises);
-    
-    // Filter out failed match requests
-    const validMatches = matches.filter(match => match !== null);
-    
-    res.json({
-      data: validMatches,
-      meta: {
-        count: validMatches.length,
-        total: playerData.data.relationships.matches.data.length
-      }
-    });
-  } catch (error) {
-    console.error(`Error getting matches for player ${req.params.id}:`, error);
-    
-    if (error.response?.status === 404) {
+    if (!updatedPlayer) {
       return res.status(404).json({ error: 'Player not found' });
     }
     
+    res.json({
+      message: 'Player updated successfully',
+      data: updatedPlayer
+    });
+  } catch (error) {
+    console.error(`Error updating player ${req.params.id}:`, error);
     res.status(500).json({ 
-      error: 'Error retrieving player matches',
+      error: 'Error updating player',
       details: error.message
     });
   }
 });
 
 /**
- * @route GET /api/players/:id/season/:seasonId
- * @desc Get player's season stats
- * @access Public
+ * @route DELETE /api/players/:id
+ * @desc Delete player
+ * @access Private
  */
-router.get('/:id/season/:seasonId', async (req, res) => {
+router.delete('/:id', authenticateJWT, async (req, res) => {
   try {
-    const { id, seasonId } = req.params;
-    const { platform = 'steam' } = req.query;
+    const { id } = req.params;
     
-    const seasonStats = await pubgApiService.getPlayerSeasonStats(id, seasonId, platform);
+    // Delete player
+    const deletedCount = await db('players')
+      .where({ id })
+      .delete();
     
-    res.json(seasonStats);
-  } catch (error) {
-    console.error(`Error getting season stats for player ${req.params.id}:`, error);
-    
-    if (error.response?.status === 404) {
-      return res.status(404).json({ error: 'Player or season not found' });
+    if (deletedCount === 0) {
+      return res.status(404).json({ error: 'Player not found' });
     }
     
+    res.json({
+      message: 'Player deleted successfully'
+    });
+  } catch (error) {
+    console.error(`Error deleting player ${req.params.id}:`, error);
     res.status(500).json({ 
-      error: 'Error retrieving season stats',
+      error: 'Error deleting player',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/players/search
+ * @desc Search players by pubg name
+ * @access Public
+ */
+router.get('/search', async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+    
+    const players = await db('players')
+      .where('pubg_name', 'ilike', `%${query}%`)
+      .orWhere('name', 'ilike', `%${query}%`)
+      .limit(10);
+    
+    res.json({
+      data: players,
+      meta: {
+        count: players.length,
+        query
+      }
+    });
+  } catch (error) {
+    console.error('Error searching players:', error);
+    res.status(500).json({ 
+      error: 'Error searching players',
       details: error.message
     });
   }

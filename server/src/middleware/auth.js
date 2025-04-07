@@ -1,15 +1,20 @@
 const jwt = require('jsonwebtoken');
-const { JWT_SECRET } = require('../config/environment');
+const { JWT_SECRET, NODE_ENV } = require('../config/environment');
 
 /**
  * Middleware to authenticate JWT tokens
  */
 const authenticateJWT = (req, res, next) => {
+  // Log authentication attempt
+  console.log(`Authentication attempt for ${req.method} ${req.path}`);
   // Get the token from the Authorization header
   const authHeader = req.headers.authorization;
   
-  if (!authHeader) {
-    return res.status(401).json({ error: 'Authorization header is missing' });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ 
+      error: 'Authorization header is missing or invalid',
+      message: 'Please provide a valid Bearer token in the Authorization header'
+    });
   }
   
   // Extract the token - format 'Bearer TOKEN'
@@ -23,6 +28,9 @@ const authenticateJWT = (req, res, next) => {
     // Verify the token
     const decoded = jwt.verify(token, JWT_SECRET);
     
+    // Log successful verification
+    console.log('Token verified for user:', decoded.id);
+    
     // Attach the decoded user to the request object
     req.user = decoded;
     
@@ -33,6 +41,10 @@ const authenticateJWT = (req, res, next) => {
     
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Token has expired' });
+    }
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Invalid token format or signature' });
     }
     
     return res.status(401).json({ error: 'Invalid token' });

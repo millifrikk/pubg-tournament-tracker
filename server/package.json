@@ -11,6 +11,8 @@
     "migrate:make": "npm run knex migrate:make",
     "seed": "npm run knex seed:run",
     "seed:make": "npm run knex seed:make",
+    "migrate:sql": "node ./src/db/runMigrations.js",
+    "db:fix": "npm run migrate:sql",
     "test": "jest"
   },
   "keywords": [

@@ -1,88 +1,110 @@
-// authService.js - Handle JWT authentication and tokens
+// client/src/services/authService.js
 
-const TOKEN_KEY = 'pubg_tracker_auth_token';
-const USER_DATA_KEY = 'pubg_tracker_user_data';
+const TOKEN_KEY = 'token'; // Make sure this is consistent across all files
 
-// Auth service for JWT token management
-const authService = {
-  /**
-   * Set the authentication token
-   * @param {string} token - JWT token
-   */
+class AuthService {
+  // Login user and store token
+  async login(credentials) {
+    try {
+      console.log('AuthService login called with:', credentials);
+      
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(credentials)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Login response error:', errorData);
+        throw new Error(errorData.error || 'Login failed');
+      }
+      
+      const data = await response.json();
+      console.log('Login successful, received data:', data);
+      
+      if (!data.token) {
+        console.error('No token received in login response');
+        throw new Error('No authentication token received');
+      }
+      
+      this.setToken(data.token);
+      return data;
+    } catch (error) {
+      console.error('Login error in AuthService:', error);
+      throw error;
+    }
+  }
+  
+  // Set token in localStorage
   setToken(token) {
     if (token) {
+      console.log('Setting token in localStorage');
       localStorage.setItem(TOKEN_KEY, token);
+      
+      // If using fetch, we don't need to set default headers here
+      // Each request will get the token from localStorage as needed
     }
-  },
+  }
   
-  /**
-   * Get the current authentication token
-   * @returns {string|null} JWT token or null if not logged in
-   */
+  // Get token from localStorage
   getToken() {
-    return localStorage.getItem(TOKEN_KEY);
-  },
+    const token = localStorage.getItem(TOKEN_KEY);
+    return token;
+  }
   
-  /**
-   * Set user data in local storage
-   * @param {Object} userData - User data object
-   */
-  setUserData(userData) {
-    if (userData) {
-      localStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
+  // Get auth header value
+  getAuthHeader() {
+    const token = this.getToken();
+    if (token) {
+      return { 'Authorization': `Bearer ${token}` };
     }
-  },
+    return {};
+  }
   
-  /**
-   * Get current user data
-   * @returns {Object|null} User data or null if not logged in
-   */
-  getUserData() {
-    const userDataStr = localStorage.getItem(USER_DATA_KEY);
-    if (userDataStr) {
-      try {
-        return JSON.parse(userDataStr);
-      } catch (error) {
-        console.error('Error parsing user data from localStorage', error);
-        return null;
-      }
-    }
-    return null;
-  },
-  
-  /**
-   * Check if user is logged in
-   * @returns {boolean} True if logged in
-   */
+  // Check if user is logged in
   isLoggedIn() {
     return !!this.getToken();
-  },
-  
-  /**
-   * Get user ID of logged in user
-   * @returns {string|null} User ID or null if not logged in
-   */
-  getUserId() {
-    const userData = this.getUserData();
-    return userData ? userData.id : null;
-  },
-  
-  /**
-   * Check if user has admin role
-   * @returns {boolean} True if user is admin
-   */
-  isAdmin() {
-    const userData = this.getUserData();
-    return userData ? userData.role === 'admin' : false;
-  },
-  
-  /**
-   * Logout user by removing token and user data
-   */
-  logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_DATA_KEY);
   }
-};
+  
+  // Logout user
+  logout() {
+    console.log('Removing token from localStorage');
+    localStorage.removeItem(TOKEN_KEY);
+  }
+  
+  // Refresh token
+  async refreshToken() {
+    const currentToken = this.getToken();
+    if (!currentToken) {
+      throw new Error('No token to refresh');
+    }
+    
+    try {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentToken}`
+        },
+        body: JSON.stringify({ token: currentToken })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to refresh token');
+      }
+      
+      const data = await response.json();
+      this.setToken(data.token);
+      return data.token;
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      this.logout();
+      throw error;
+    }
+  }
+}
 
-export default authService;
+export default new AuthService();

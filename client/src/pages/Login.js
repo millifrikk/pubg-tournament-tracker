@@ -24,13 +24,18 @@ const Login = () => {
       setError('');
       setLoading(true);
       
+      console.log('Login component: Attempting to login with:', { usernameOrEmail, password });
+      
       // Login
       await login(usernameOrEmail, password);
+      
+      console.log('Login component: Login successful, redirecting to dashboard');
       
       // Redirect to dashboard
       navigate('/dashboard');
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to login');
+      console.error('Login component: Login failed:', error);
+      setError(error.message || 'Failed to login. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -75,6 +80,11 @@ const Login = () => {
           <div className="auth-links">
             <p>
               Don't have an account? <Link to="/register">Register</Link>
+            </p>
+            
+            {/* Dev login link - remove in production */}
+            <p>
+              <Link to="/dev-login" className="text-sm text-gray-500">Dev Login</Link>
             </p>
           </div>
         </div>

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import teamService from '../../services/teamService';
+import authService from '../../services/authService';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const CreateTeam = () => {
@@ -14,6 +15,16 @@ const CreateTeam = () => {
     tag: '',
     logoUrl: ''
   });
+  
+  useEffect(() => {
+    // Check if user is logged in
+    const token = localStorage.getItem('token');
+    console.log('Current authentication token:', token ? 'Present' : 'Missing');
+    
+    if (!token) {
+      setError('You must be logged in to create a team');
+    }
+  }, []);
   
   // Handle input changes
   const handleInputChange = (e) => {
@@ -41,14 +52,39 @@ const CreateTeam = () => {
     setError(null);
     
     try {
+      // Check auth token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication required. Please log in first.');
+      }
+      
       // Create team
-      const response = await axios.post('/api/teams', formData);
+      console.log('Creating team with teamService:', formData);
+      console.log('Using authentication token:', token.substring(0, 15) + '...');
+      
+      // Create team data object that matches the server's expectations
+      const teamData = {
+        name: formData.name,
+        tag: formData.tag,
+        logoUrl: formData.logoUrl
+      };
+      
+      const response = await teamService.createTeam(teamData);
+      console.log('Team creation successful:', response);
       
       // Redirect to team details page
-      navigate(`/teams/${response.data.data.id}`);
+      navigate(`/teams/${response.data.id}`);
     } catch (err) {
       console.error('Error creating team:', err);
-      setError(err.response?.data?.error || 'Failed to create team');
+      let errorMessage = err.response?.data?.error || 'Failed to create team';
+      
+      // Check for specific error types
+      if (err.message?.includes('Authorization') || err.message?.includes('Authentication')) {
+        errorMessage = `Authentication error: ${err.message}. Please try logging in again.`;
+      }
+      
+      console.log('Setting error:', errorMessage);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

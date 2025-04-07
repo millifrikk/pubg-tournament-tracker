@@ -1,146 +1,99 @@
-import axios from 'axios';
+// client/src/services/api.js
 
-// Create axios instance
-const api = axios.create({
-  baseURL: '/api',
-  headers: {
-    'Content-Type': 'application/json'
+// We'll get the token directly from localStorage to avoid circular dependency
+console.log('Initializing API service')
+
+// Base API class that handles requests with authentication
+class ApiService {
+  // Get request with auth
+  async get(url, options = {}) {
+    return this.request('GET', url, null, options);
   }
-});
-
-// Add auth token to requests if available
-const token = localStorage.getItem('token');
-if (token) {
-  api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-}
-
-// Add response interceptor for handling errors
-api.interceptors.response.use(
-  response => response,
-  error => {
-    // Handle specific error cases
-    if (error.response) {
-      // The request was made and the server responded with a non-2xx status
-      const { status } = error.response;
+  
+  // Post request with auth
+  async post(url, data, options = {}) {
+    return this.request('POST', url, data, options);
+  }
+  
+  // Put request with auth
+  async put(url, data, options = {}) {
+    return this.request('PUT', url, data, options);
+  }
+  
+  // Delete request with auth
+  async delete(url, options = {}) {
+    return this.request('DELETE', url, null, options);
+  }
+  
+  // Universal request method
+  async request(method, url, data = null, options = {}) {
+    try {
+      // Get token directly from localStorage to avoid circular dependency
+      const token = localStorage.getItem('token');
       
-      // Handle authentication errors
-      if (status === 401) {
-        // If token refresh fails or user is not authenticated
-        if (error.config.url !== '/auth/refresh' && error.config.url !== '/auth/login') {
-          // Remove token and redirect to login
-          localStorage.removeItem('token');
-          delete api.defaults.headers.common['Authorization'];
-          
-          // Don't redirect if we're already on the login page
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
-          }
+      // Prepare headers
+      const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers
+      };
+      
+      // Add auth header if token exists
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        console.log('Adding auth header with token');
+      } else {
+        console.warn('No token available for request to ' + url);
+        // For requests to protected routes, this will likely fail
+        // Add a more descriptive error message
+        if (url.includes('/api/teams') || url.includes('/api/tournaments')) {
+          throw new Error('Authorization token missing. You may need to log in again.');
         }
       }
+      
+      // Log the request for debugging
+      console.log(`API ${method} request to ${url}`);
+      console.log('Headers:', headers);
+      if (data) console.log('Data:', data);
+      
+      // Build request config
+      const config = {
+        method,
+        headers,
+        ...options
+      };
+      
+      // Add body for non-GET requests
+      if (data && method !== 'GET') {
+        config.body = JSON.stringify(data);
+      }
+      
+      // Make the request
+      const response = await fetch(url, config);
+      
+      // Parse the JSON response
+      const responseData = await response.json();
+      
+      // Handle unsuccessful responses
+      if (!response.ok) {
+        // Check for authentication errors
+        if (response.status === 401) {
+          console.error('Authentication error');
+          // You might want to redirect to login page here
+          // Remove token directly without using authService
+          localStorage.removeItem('token');
+          // Log authentication error for debugging
+          console.log('Auth error detected, token removed');
+        }
+        
+        throw new Error(responseData.error || `Request failed with status ${response.status}`);
+      }
+      
+      return responseData;
+    } catch (error) {
+      console.error(`API error (${method} ${url}):`, error);
+      throw error;
     }
-    
-    return Promise.reject(error);
   }
-);
+}
 
-// Player API
-export const playerApi = {
-  searchPlayer: (name, platform = 'steam') => 
-    api.get(`/players/search?name=${name}&platform=${platform}`),
-  
-  getPlayerById: (id, platform = 'steam') => 
-    api.get(`/players/${id}?platform=${platform}`),
-  
-  getPlayerMatches: (id, platform = 'steam', limit = 10) => 
-    api.get(`/players/${id}/matches?platform=${platform}&limit=${limit}`),
-  
-  getPlayerSeasonStats: (id, seasonId, platform = 'steam') => 
-    api.get(`/players/${id}/season/${seasonId}?platform=${platform}`)
-};
-
-// Match API
-export const matchApi = {
-  getMatch: (id, platform = 'steam') => 
-    api.get(`/matches/${id}?platform=${platform}`),
-  
-  getTelemetry: (id, platform = 'steam') => 
-    api.get(`/matches/${id}/telemetry?platform=${platform}`),
-  
-  searchMatches: (criteria) => 
-    api.post('/matches/search', criteria),
-  
-  registerMatch: (matchData) => 
-    api.post('/matches/register', matchData)
-};
-
-// Tournament API
-export const tournamentApi = {
-  getAllTournaments: (params = {}) => 
-    api.get('/tournaments', { params }),
-  
-  getTournamentById: (id) => 
-    api.get(`/tournaments/${id}`),
-  
-  createTournament: (tournamentData) => 
-    api.post('/tournaments', tournamentData),
-  
-  updateTournament: (id, tournamentData) => 
-    api.put(`/tournaments/${id}`, tournamentData),
-  
-  deleteTournament: (id) => 
-    api.delete(`/tournaments/${id}`),
-  
-  getTournamentMatches: (id, platform = 'steam') => 
-    api.get(`/tournaments/${id}/matches?platform=${platform}`),
-  
-  addMatchesToTournament: (id, matchIds, stage = 'group') => 
-    api.post(`/tournaments/${id}/matches`, { matchIds, stage }),
-  
-  removeMatchFromTournament: (id, matchId) => 
-    api.delete(`/tournaments/${id}/matches/${matchId}`),
-  
-  calculateStandings: (id, platform = 'steam') => 
-    api.post(`/tournaments/${id}/calculate-standings`, { platform })
-};
-
-// Team API
-export const teamApi = {
-  getAllTeams: (params = {}) => 
-    api.get('/teams', { params }),
-  
-  getTeamById: (id) => 
-    api.get(`/teams/${id}`),
-  
-  createTeam: (teamData) => 
-    api.post('/teams', teamData),
-  
-  updateTeam: (id, teamData) => 
-    api.put(`/teams/${id}`, teamData),
-  
-  deleteTeam: (id) => 
-    api.delete(`/teams/${id}`),
-  
-  addPlayersToTeam: (id, players) => 
-    api.post(`/teams/${id}/players`, { players }),
-  
-  removePlayerFromTeam: (id, playerId) => 
-    api.delete(`/teams/${id}/players/${playerId}`)
-};
-
-// Auth API
-export const authApi = {
-  login: (usernameOrEmail, password) => 
-    api.post('/auth/login', { usernameOrEmail, password }),
-  
-  register: (userData) => 
-    api.post('/auth/register', userData),
-  
-  getCurrentUser: () => 
-    api.get('/auth/me'),
-  
-  refreshToken: (token) => 
-    api.post('/auth/refresh', { token })
-};
-
-// Export the api instance as default
-export default api;
+export default new ApiService();

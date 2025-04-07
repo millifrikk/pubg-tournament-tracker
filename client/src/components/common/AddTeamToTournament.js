@@ -79,16 +79,36 @@ const AddTeamToTournament = ({ tournamentId, onSuccess, onCancel }) => {
     setError(null);
     
     try {
-      // Add teams to tournament
-      await Promise.all(selectedTeams.map(teamId => 
-        axios.post(`/api/tournaments/${tournamentId}/teams`, { teamId })
-      ));
+      console.log(`Adding ${selectedTeams.length} teams to tournament ${tournamentId}`);
       
-      // Call success callback
-      onSuccess();
+      // Add teams to tournament one by one with better error handling
+      const successfulTeams = [];
+      const failedTeams = [];
+      
+      for (const teamId of selectedTeams) {
+        try {
+          console.log(`Adding team ${teamId} to tournament ${tournamentId}`);
+          await axios.post(`/api/tournaments/${tournamentId}/teams`, { teamId });
+          successfulTeams.push(teamId);
+        } catch (teamError) {
+          console.error(`Error adding team ${teamId}:`, teamError);
+          failedTeams.push(teamId);
+        }
+      }
+      
+      if (failedTeams.length > 0 && successfulTeams.length > 0) {
+        setError(`Added ${successfulTeams.length} teams, but failed to add ${failedTeams.length} teams`);
+      } else if (failedTeams.length > 0 && successfulTeams.length === 0) {
+        throw new Error('Failed to add any teams to the tournament');
+      } else {
+        // All teams added successfully
+        // Call success callback
+        onSuccess();
+      }
     } catch (err) {
       console.error('Error adding teams to tournament:', err);
-      setError(err.response?.data?.error || 'Failed to add teams to tournament');
+      setError(err.response?.data?.error || err.message || 'Failed to add teams to tournament');
+    } finally {
       setSubmitting(false);
     }
   };

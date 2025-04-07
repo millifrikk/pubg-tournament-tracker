@@ -63,11 +63,22 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Team not found' });
     }
     
-    // Get players for this team
-    const players = await db('team_players')
-      .select('team_players.is_active', 'team_players.joined_at', 'players.id', 'players.name', 'players.pubg_id', 'players.platform')
-      .join('players', 'team_players.player_id', 'players.id')
-      .where({ 'team_players.team_id': id });
+    // Get players from both team_players junction AND direct team_id reference
+    let players = [];
+    
+    // Get players with direct team_id reference
+    const directPlayers = await db('players')
+      .where({ team_id: id });
+      
+    if (directPlayers.length > 0) {
+      players = directPlayers;
+    } else {
+      // Fall back to team_players junction if no direct players found
+      players = await db('team_players')
+        .select('team_players.is_active', 'team_players.joined_at', 'players.id', 'players.name', 'players.pubg_id', 'players.platform')
+        .join('players', 'team_players.player_id', 'players.id')
+        .where({ 'team_players.team_id': id });
+    }
     
     // Get tournaments this team has participated in
     const tournaments = await db('tournament_teams')
@@ -105,8 +116,6 @@ router.post('/', authenticateJWT, async (req, res) => {
       logoUrl
     } = req.body;
     
-    // TODO: Get user ID from JWT token
-    
     // Validate required fields
     if (!name) {
       return res.status(400).json({ error: 'Team name is required' });
@@ -121,13 +130,33 @@ router.post('/', authenticateJWT, async (req, res) => {
       return res.status(409).json({ error: 'Team name already exists' });
     }
     
+    // Get creator ID from authenticated user
+    const creatorId = req.user.id;
+    
+    console.log('Creating team with creator ID:', creatorId);
+    console.log('Full user object from token:', req.user);
+    
+    // Validate that we have a valid UUID
+    if (!creatorId) {
+      return res.status(400).json({
+        error: 'Valid user ID required to create team',
+        details: 'Authentication issue: Invalid or missing user ID'
+      });
+    }
+    
+    // Prepare team data
+    const teamData = {
+      name,
+      tag: tag || name.substring(0, 4).toUpperCase(),
+      logo_url: logoUrl,
+      created_by: creatorId  // Track the creator
+    };
+    
+    console.log('Creating team with data:', teamData);
+    
     // Create team
     const [team] = await db('teams')
-      .insert({
-        name,
-        tag: tag || name.substring(0, 4).toUpperCase(),
-        logo_url: logoUrl
-      })
+      .insert(teamData)
       .returning('*');
     
     res.status(201).json({
@@ -157,7 +186,10 @@ router.put('/:id', authenticateJWT, async (req, res) => {
       logoUrl
     } = req.body;
     
-    // TODO: Get user ID from JWT token and check permissions
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     
     // Check if team exists
     const team = await db('teams')
@@ -214,7 +246,10 @@ router.delete('/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
     
-    // TODO: Get user ID from JWT token and check permissions
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     
     // Check if team exists
     const team = await db('teams')
@@ -254,16 +289,112 @@ router.delete('/:id', authenticateJWT, async (req, res) => {
 });
 
 /**
+ * @route GET /api/teams/:id/players
+ * @desc Get all players for a team with direct relationship
+ * @access Public
+ */
+router.get('/:id/players', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if team exists
+    const team = await db('teams')
+      .where({ id })
+      .first();
+    
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+    
+    // Get players with direct team_id reference
+    const players = await db('players')
+      .where({ team_id: id });
+    
+    res.json({
+      data: players,
+      meta: {
+        count: players.length,
+        teamId: id,
+        teamName: team.name
+      }
+    });
+  } catch (error) {
+    console.error(`Error getting players for team ${req.params.id}:`, error);
+    res.status(500).json({ 
+      error: 'Error retrieving team players',
+      details: error.message 
+    });
+  }
+});
+
+/**
  * @route POST /api/teams/:id/players
- * @desc Add players to a team
+ * @desc Add a single player to a team with direct relationship
  * @access Private
  */
 router.post('/:id/players', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
+    const { pubgName, pubgId, platform = 'steam' } = req.body;
+    
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    if (!pubgName) {
+      return res.status(400).json({ error: 'PUBG name is required' });
+    }
+    
+    // Check if team exists
+    const team = await db('teams')
+      .where({ id })
+      .first();
+    
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+    
+    // Create player with team_id reference
+    const [player] = await db('players')
+      .insert({
+        name: pubgName, // For compatibility with existing schema
+        pubg_name: pubgName,
+        pubg_id: pubgId || null,
+        platform,
+        team_id: id,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .returning('*');
+    
+    res.status(201).json({
+      message: 'Player added to team successfully',
+      data: player
+    });
+  } catch (error) {
+    console.error(`Error adding player to team ${req.params.id}:`, error);
+    res.status(500).json({ 
+      error: 'Error adding player to team',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * @route POST /api/teams/:id/players/bulk
+ * @desc Add multiple players to a team
+ * @access Private
+ */
+router.post('/:id/players/bulk', authenticateJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
     const { players } = req.body;
     
-    // TODO: Get user ID from JWT token and check permissions
+    // Ensure user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     
     if (!players || !Array.isArray(players) || players.length === 0) {
       return res.status(400).json({ error: 'Players array is required' });
@@ -386,7 +517,16 @@ router.delete('/:id/players/:playerId', authenticateJWT, async (req, res) => {
   try {
     const { id, playerId } = req.params;
     
-    // TODO: Get user ID from JWT token and check permissions
+    // Get user ID from JWT token
+    const userId = req.user.id;
+    
+    // Validate that we have a valid user ID
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        details: 'Valid user ID is needed to remove players'
+      });
+    }
     
     // Check if team exists
     const team = await db('teams')
@@ -397,7 +537,29 @@ router.delete('/:id/players/:playerId', authenticateJWT, async (req, res) => {
       return res.status(404).json({ error: 'Team not found' });
     }
     
-    // Check if player is on this team
+    // First check if player has direct team_id reference
+    const player = await db('players')
+      .where({ 
+        id: playerId,
+        team_id: id
+      })
+      .first();
+    
+    if (player) {
+      // Update player to remove team association (don't delete the player)
+      await db('players')
+        .where({ id: playerId })
+        .update({ 
+          team_id: null,
+          updated_at: new Date()
+        });
+        
+      return res.json({
+        message: 'Player removed from team successfully'
+      });
+    }
+    
+    // Fall back to team_players junction if no direct relationship
     const teamPlayer = await db('team_players')
       .where({ 
         team_id: id,

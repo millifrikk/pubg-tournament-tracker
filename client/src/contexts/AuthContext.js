@@ -1,144 +1,131 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import jwt_decode from 'jwt-decode';
-import api from '../services/api';
+import authService from '../services/authService';
 
+// Create context
 const AuthContext = createContext();
 
+// Custom hook to use the auth context
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   
+  // Check if user is already logged in on initial load
   useEffect(() => {
     const verifyToken = async () => {
-      if (!token) {
-        setCurrentUser(null);
-        setLoading(false);
-        return;
-      }
-      
       try {
-        // Check if token is expired
-        const decoded = jwt_decode(token);
-        const currentTime = Date.now() / 1000;
+        const token = authService.getToken();
         
-        if (decoded.exp < currentTime) {
-          // Token is expired
-          logout();
+        if (!token) {
+          setCurrentUser(null);
+          setLoading(false);
           return;
         }
         
-        // Set auth header
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        
-        // Get current user
-        const response = await api.get('/auth/me');
-        setCurrentUser(response.data.user);
-      } catch (error) {
-        console.error('Error verifying token:', error);
-        logout();
+        // Check if token is expired
+        try {
+          const decoded = jwt_decode(token);
+          const currentTime = Date.now() / 1000;
+          
+          if (decoded.exp < currentTime) {
+            // Token is expired
+            logout();
+            return;
+          }
+          
+          // Token is valid, get current user data
+          console.log('Token is valid, getting user data');          
+          const response = await fetch('/api/auth/me', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          console.log('User data response status:', response.status);
+          
+          if (!response.ok) {
+            throw new Error('Failed to get user data');
+          }
+          
+          const data = await response.json();
+          setCurrentUser(data.user);
+        } catch (error) {
+          console.error('Token validation error:', error);
+          logout();
+        }
       } finally {
         setLoading(false);
       }
     };
     
     verifyToken();
-  }, [token]);
+  }, []);
   
+  // Login function
   const login = async (usernameOrEmail, password) => {
     try {
-      const response = await api.post('/auth/login', {
-        usernameOrEmail,
-        password
-      });
+      const credentials = { usernameOrEmail, password };
+      console.log('Attempting login with:', credentials);
       
-      const { token, user } = response.data;
+      const data = await authService.login(credentials);
+      console.log('Login successful:', data);
       
-      // Save token to localStorage
-      localStorage.setItem('token', token);
-      
-      // Set auth header
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
-      setToken(token);
-      setCurrentUser(user);
-      
-      return user;
+      setCurrentUser(data.user);
+      return data.user;
     } catch (error) {
-      console.error('Login error:', error.response?.data || error.message);
+      console.error('Login error in AuthContext:', error);
       throw error;
     }
   };
   
+  // Register function
   const register = async (userData) => {
     try {
-      const response = await api.post('/auth/register', userData);
+      // Use fetch directly for registration to avoid circular dependencies
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userData)
+      });
       
-      const { token, user } = response.data;
+      const data = await response.json();
       
-      // Save token to localStorage
-      localStorage.setItem('token', token);
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed');
+      }
       
-      // Set auth header
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      // Save token and user data
+      authService.setToken(data.token);
+      setCurrentUser(data.user);
       
-      setToken(token);
-      setCurrentUser(user);
-      
-      return user;
+      return data.user;
     } catch (error) {
-      console.error('Registration error:', error.response?.data || error.message);
+      console.error('Registration error:', error);
       throw error;
     }
   };
   
+  // Logout function
   const logout = () => {
-    // Remove token from localStorage
-    localStorage.removeItem('token');
-    
-    // Remove auth header
-    delete api.defaults.headers.common['Authorization'];
-    
-    setToken(null);
+    authService.logout();
     setCurrentUser(null);
-    
-    // Redirect to login
     navigate('/login');
   };
   
-  const refreshToken = async () => {
-    try {
-      const response = await api.post('/auth/refresh', { token });
-      
-      const newToken = response.data.token;
-      
-      // Save token to localStorage
-      localStorage.setItem('token', newToken);
-      
-      // Set auth header
-      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-      
-      setToken(newToken);
-      
-      return newToken;
-    } catch (error) {
-      console.error('Token refresh error:', error.response?.data || error.message);
-      logout();
-      throw error;
-    }
-  };
-  
+  // Define the context value
   const value = {
     currentUser,
     loading,
     login,
     register,
     logout,
-    refreshToken,
     isAuthenticated: !!currentUser
   };
   

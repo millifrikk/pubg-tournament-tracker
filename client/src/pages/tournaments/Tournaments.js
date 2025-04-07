@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { tournamentApi } from '../../services/api';
+import tournamentApi from '../../services/tournamentApi'; // Updated import
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const Tournaments = () => {
@@ -13,7 +13,7 @@ const Tournaments = () => {
       try {
         setLoading(true);
         const response = await tournamentApi.getAllTournaments();
-        setTournaments(response.data.data);
+        setTournaments(response.data || []);
       } catch (error) {
         console.error('Error fetching tournaments:', error);
         setError('Failed to load tournaments');
@@ -50,11 +50,11 @@ const Tournaments = () => {
               <div key={tournament.id} className="tournament-card">
                 <h2>{tournament.name}</h2>
                 <div className="tournament-dates">
-                  <span>{new Date(tournament.start_date).toLocaleDateString()}</span>
+                  <span>{new Date(tournament.start_date || tournament.startDate).toLocaleDateString()}</span>
                   <span> to </span>
-                  <span>{new Date(tournament.end_date).toLocaleDateString()}</span>
+                  <span>{new Date(tournament.end_date || tournament.endDate).toLocaleDateString()}</span>
                 </div>
-                <p className="tournament-format">{tournament.format} | {tournament.scoring_system}</p>
+                <p className="tournament-format">{tournament.format} | {tournament.scoring_system || tournament.scoringSystem}</p>
                 {tournament.description && (
                   <p className="tournament-description">{tournament.description}</p>
                 )}

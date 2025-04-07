@@ -5,17 +5,36 @@
         "type": "player",
         "id": "account.a48279320034499cbfdc425ee68e80d1",
         "attributes": {
-          "clanId": "clan.1455183c5ebc42ce983ce4c81db92cc9",
           "name": "G0R4N",
           "stats": null,
           "titleId": "pubg",
           "shardId": "steam",
           "patchVersion": "",
-          "banType": "Innocent"
+          "banType": "Innocent",
+          "clanId": "clan.1455183c5ebc42ce983ce4c81db92cc9"
         },
         "relationships": {
+          "assets": {
+            "data": []
+          },
           "matches": {
             "data": [
+              {
+                "type": "match",
+                "id": "cc3aec3d-0076-4dac-a9c2-d87c6a3d19eb"
+              },
+              {
+                "type": "match",
+                "id": "2dc35b41-8b5c-4a59-bfaf-3f76c2ce5035"
+              },
+              {
+                "type": "match",
+                "id": "ed71d73a-c9a9-48bf-824a-8524616c8c35"
+              },
+              {
+                "type": "match",
+                "id": "e09dc9c9-8ece-4f54-ab7e-852a446c7e40"
+              },
               {
                 "type": "match",
                 "id": "924d8e73-66c3-462c-9cc9-a9bcaee49a6b"
@@ -235,35 +254,8 @@
               {
                 "type": "match",
                 "id": "1366115f-7e5c-42d2-8db0-df264d265374"
-              },
-              {
-                "type": "match",
-                "id": "27692d11-aa86-4617-b674-be14a1f50465"
-              },
-              {
-                "type": "match",
-                "id": "187a18d1-d791-4e2f-8884-9eab8c863537"
-              },
-              {
-                "type": "match",
-                "id": "d6f7d72b-2f4b-4150-a43e-fd02c1979717"
-              },
-              {
-                "type": "match",
-                "id": "06d7a16c-92f6-4376-a6fb-54f62963453e"
-              },
-              {
-                "type": "match",
-                "id": "0d99355c-38c1-41d3-9dfd-72bf2fc724c6"
-              },
-              {
-                "type": "match",
-                "id": "1a392750-6b5a-41dc-8c05-a811a4ed64d5"
               }
             ]
-          },
-          "assets": {
-            "data": []
           }
         },
         "links": {
@@ -277,6 +269,6 @@
     },
     "meta": {}
   },
-  "timestamp": 1743107733184,
-  "expires": 1743108633184
+  "timestamp": 1743261783000,
+  "expires": 1743262683000
 }

@@ -62,17 +62,26 @@ router.post('/register', async (req, res) => {
       })
       .returning(['id', 'username', 'email', 'role', 'created_at']);
     
-    // Generate JWT token
+    // Generate JWT token with a standardized payload structure
+    const tokenPayload = { 
+      id: user.id, 
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      createdAt: new Date().toISOString()
+    };
+    
+    console.log('Generating token with payload:', JSON.stringify(tokenPayload));
+    
     const token = jwt.sign(
-      { 
-        id: user.id, 
-        username: user.username,
-        email: user.email,
-        role: user.role
-      },
+      tokenPayload,
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+    
+    // Verify token to ensure it's generated correctly
+    const decodedToken = jwt.verify(token, JWT_SECRET);
+    console.log('Token verified with ID:', decodedToken.id);
     
     res.status(201).json({
       message: 'User registered successfully',
@@ -98,6 +107,8 @@ router.post('/login', async (req, res) => {
     const { usernameOrEmail, password } = req.body;
     
     console.log('Login attempt:', usernameOrEmail);
+    console.log('Request body:', req.body);
+    console.log('Headers:', req.headers);
     
     if (!usernameOrEmail || !password) {
       return res.status(400).json({ error: 'Username/email and password are required' });
@@ -141,17 +152,26 @@ router.post('/login', async (req, res) => {
         updated_at: new Date()
       });
     
-    // Generate JWT token
+    // Generate JWT token with a standardized payload structure
+    const tokenPayload = { 
+      id: user.id, 
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      createdAt: new Date().toISOString()
+    };
+    
+    console.log('Generating token with payload:', JSON.stringify(tokenPayload));
+    
     const token = jwt.sign(
-      { 
-        id: user.id, 
-        username: user.username,
-        email: user.email,
-        role: user.role
-      },
+      tokenPayload,
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+    
+    // Verify token to ensure it's generated correctly
+    const decodedToken = jwt.verify(token, JWT_SECRET);
+    console.log('Token verified with ID:', decodedToken.id);
     
     // Return user data without password
     const { password_hash, ...userData } = user;
@@ -238,17 +258,26 @@ router.post('/refresh', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // Generate new JWT token
+    // Generate new JWT token with standardized payload structure
+    const tokenPayload = { 
+      id: user.id, 
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      createdAt: new Date().toISOString()
+    };
+    
+    console.log('Generating refresh token with payload:', JSON.stringify(tokenPayload));
+    
     const newToken = jwt.sign(
-      { 
-        id: user.id, 
-        username: user.username,
-        email: user.email,
-        role: user.role
-      },
+      tokenPayload,
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+    
+    // Verify token to ensure it's generated correctly
+    const decodedToken = jwt.verify(newToken, JWT_SECRET);
+    console.log('Refresh token verified with ID:', decodedToken.id);
     
     res.json({
       message: 'Token refreshed successfully',
@@ -346,6 +375,7 @@ if (NODE_ENV === 'development') {
       
       // If admin doesn't exist, create it
       await db('users').insert({
+        id: '00000000-0000-0000-0000-000000000000', // Default UUID for development
         username: 'admin',
         email: 'admin@example.com',
         password_hash: passwordHash,
@@ -359,6 +389,70 @@ if (NODE_ENV === 'development') {
       console.error('Error resetting admin password:', error);
       res.status(500).json({ 
         error: 'Error resetting admin password',
+        details: error.message
+      });
+    }
+  });
+  
+  // Special endpoint to directly login as admin in development
+  router.get('/dev-login', async (req, res) => {
+    try {
+      // Find or create admin user
+      let adminUser = await db('users').where({ username: 'admin' }).first();
+      
+      if (!adminUser) {
+        // Create admin user if it doesn't exist
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash('admin123', saltRounds);
+        
+        [adminUser] = await db('users')
+          .insert({
+            id: '00000000-0000-0000-0000-000000000000', // Default UUID for development
+            username: 'admin',
+            email: 'admin@example.com',
+            password_hash: passwordHash,
+            role: 'admin',
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .returning(['id', 'username', 'email', 'role', 'created_at']);
+      }
+      
+      // Generate JWT token with a standardized payload structure
+      const tokenPayload = { 
+        id: adminUser.id, 
+        username: adminUser.username,
+        email: adminUser.email,
+        role: adminUser.role,
+        createdAt: new Date().toISOString()
+      };
+      
+      console.log('Generating admin token with payload:', JSON.stringify(tokenPayload));
+      
+      const token = jwt.sign(
+        tokenPayload,
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+      );
+      
+      // Verify token to ensure it's generated correctly
+      const decodedToken = jwt.verify(token, JWT_SECRET);
+      console.log('Admin token verified with ID:', decodedToken.id);
+      
+      // Return user data without password
+      const { password_hash, ...userData } = adminUser;
+      
+      console.log('Development auto-login successful');
+      
+      res.json({
+        message: 'Development auto-login successful',
+        user: userData,
+        token
+      });
+    } catch (error) {
+      console.error('Error in dev-login:', error);
+      res.status(500).json({ 
+        error: 'Error in dev-login',
         details: error.message
       });
     }

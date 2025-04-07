@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { tournamentApi } from '../../services/api';
+import tournamentService from '../../services/tournamentService'; // Change to tournamentService for consistency
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const CreateTournament = () => {
@@ -67,11 +67,17 @@ const CreateTournament = () => {
         endDate: new Date(formData.endDate).toISOString()
       };
       
-      // Create tournament using the API service
-      const response = await tournamentApi.createTournament(payload);
+      console.log('Creating tournament with data:', payload);
+      
+      // Create tournament using the tournamentService
+      const response = await tournamentService.createTournament(payload);
+      console.log('Tournament created successfully:', response);
+      
+      // Extract the tournament ID from the response
+      const tournamentId = response.data.id || response.data.data.id;
       
       // Redirect to tournament details page
-      navigate(`/tournaments/${response.data.data.id}`);
+      navigate(`/tournaments/${tournamentId}`);
     } catch (err) {
       console.error('Error creating tournament:', err);
       setError(err.response?.data?.error || 'Failed to create tournament');

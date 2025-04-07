@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import tournamentService from '../../services/tournamentService';
 import { useSocket } from '../../contexts/SocketContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import TournamentStandings from '../../components/common/TournamentStandings';
+import TournamentLeaderboard from '../../components/tournaments/TournamentLeaderboard';
 import Modal from '../../components/common/Modal';
 import AddTeamToTournament from '../../components/common/AddTeamToTournament';
 
@@ -17,25 +18,101 @@ const TournamentDetails = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [calculatingStandings, setCalculatingStandings] = useState(false);
   const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false);
-  const { joinTournament, leaveTournament, subscribeTournamentUpdates } = useSocket();
+  const { joinMatch, leaveMatch, subscribeToEvent, emitEvent } = useSocket();
   const [realTimeUpdates, setRealTimeUpdates] = useState([]);
   
-  useEffect(() => {
-    const fetchTournamentData = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get(`/api/tournaments/${tournamentId}`);
-        setTournament(response.data.data);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching tournament data:', err);
-        setError('Failed to load tournament data');
-      } finally {
-        setLoading(false);
+  // Create wrapper functions for joinMatch and leaveMatch using useCallback to prevent rerenders
+  const joinTournament = useCallback((tournamentId) => {
+    console.log('Joining tournament room:', tournamentId);
+    if (joinMatch) {
+      joinMatch(`tournament:${tournamentId}`);
+    }
+  }, [joinMatch]);
+  
+  const leaveTournament = useCallback((tournamentId) => {
+    console.log('Leaving tournament room:', tournamentId);
+    if (leaveMatch) {
+      leaveMatch(`tournament:${tournamentId}`);
+    }
+  }, [leaveMatch]);
+  
+  // Create wrapper for subscribeTournamentUpdates
+  const subscribeTournamentUpdates = useCallback((callback) => {
+    console.log('Setting up tournament updates subscription');
+    return subscribeToEvent('tournament-update', callback);
+  }, [subscribeToEvent]);
+  
+  // Use ref to track if we've already fetched the data to prevent duplicate requests
+  const dataFetchedRef = useRef(false);
+  
+  // Use a ref to track if we're already fetching data to prevent duplicate requests
+  const fetchingRef = useRef(false);
+  
+  // Use a debounced fetch function to prevent rapid consecutive calls
+  const fetchTournamentData = useCallback(async () => {
+    // Return early if already fetching or lacking a tournament ID
+    if (fetchingRef.current || !tournamentId) {
+      console.log('Skipping redundant fetch, already in progress or missing ID');
+      return;
+    }
+    
+    try {
+      // Mark that we're fetching to prevent duplicate requests
+      fetchingRef.current = true;
+      setLoading(true);
+      
+      console.log(`Fetching tournament data for ID: ${tournamentId}`);
+      const response = await tournamentService.getTournamentById(tournamentId);
+      // Log the entire response for debugging
+      console.log(`Raw response:`, response);
+      
+      // Check for different response structures and handle accordingly
+      let tournamentData = null;
+      
+      // Case 1: Standard format - response.data.data
+      if (response?.data?.data) {
+        tournamentData = response.data.data;
       }
-    };
-
-    fetchTournamentData();
+      // Case 2: Simplified format - response.data
+      else if (response?.data && !response.data.data) {
+        tournamentData = response.data;
+      }
+      // Case 3: Direct data format
+      else if (response && !response.data) {
+        tournamentData = response;
+      }
+      
+      if (tournamentData) {
+        console.log('Tournament data successfully loaded:', tournamentData.name || 'unnamed');
+        setTournament(tournamentData);
+        setError(null);
+      } else {
+        console.error('Could not extract tournament data from response. Format not recognized:', response);
+        setError('Failed to load tournament data - response format not recognized');
+      }
+    } catch (err) {
+      console.error('Error fetching tournament data:', err);
+      setError('Failed to load tournament data');
+      
+      // If we get a 429 error, don't try again immediately
+      if (err.response && err.response.status === 429) {
+        console.warn('Rate limit exceeded. Waiting before retrying...');
+      }
+    } finally {
+      setLoading(false);
+      // Reset fetching flag after a small delay to prevent immediate re-fetch
+      setTimeout(() => {
+        fetchingRef.current = false;
+      }, 500);
+    }
+  }, [tournamentId]);
+  
+  useEffect(() => {
+    // Fetch tournament data once when component mounts
+    if (!dataFetchedRef.current) {
+      dataFetchedRef.current = true;
+      fetchTournamentData();
+    }
     
     // Join tournament room for real-time updates
     joinTournament(tournamentId);
@@ -73,6 +150,23 @@ const TournamentDetails = () => {
       unsubscribe();
     };
   }, [tournamentId, joinTournament, leaveTournament, subscribeTournamentUpdates]);
+  
+  // Function to retry fetching data (useful if tournament data could not be loaded initially)
+  const retryFetchData = useCallback(() => {
+    console.log('Retrying tournament data fetch...');
+    // Clear fetchingRef to allow a new attempt
+    fetchingRef.current = false;
+    // Clear data fetched flag
+    dataFetchedRef.current = false;
+    // Clear any cached data for this tournament
+    try {
+      tournamentService.clearCache(`tournament_${tournamentId}`);
+    } catch (err) {
+      console.error('Error clearing cache:', err);
+    }
+    // Try fetching again
+    fetchTournamentData();
+  }, [tournamentId, fetchTournamentData]);
   
   // Handle tab change
   const handleTabChange = (tab) => {
@@ -178,7 +272,15 @@ const TournamentDetails = () => {
       <div className="tournament-details-page">
         <div className="container">
           <h1 className="page-title">Tournament Details</h1>
-          <div className="error-container">Tournament not found</div>
+          <div className="error-container">
+            <p>Tournament not found or could not be loaded</p>
+            <button 
+              className="btn btn-primary mt-3"
+              onClick={retryFetchData}
+            >
+              Retry Loading Tournament
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -325,10 +427,7 @@ const TournamentDetails = () => {
           {/* Standings tab */}
           {activeTab === 'standings' && (
             <div className="standings-tab">
-              <TournamentStandings 
-                tournamentId={tournamentId} 
-                initialStandings={tournament.standings ? JSON.parse(tournament.standings) : null} 
-              />
+              <TournamentLeaderboard tournamentId={tournamentId} />
               
               <div className="standings-actions">
                 <button 
@@ -422,16 +521,20 @@ const TournamentDetails = () => {
                   tournamentId={tournamentId}
                   onSuccess={() => {
                     setIsAddTeamModalOpen(false);
-                    // Refresh tournament data
-                    const fetchTournamentData = async () => {
+                    // Refresh tournament data using service
+                    const refreshTournamentData = async () => {
                       try {
-                        const response = await axios.get(`/api/tournaments/${tournamentId}`);
+                        console.log('Refreshing tournament data after adding team');
+                        // Clear cache to ensure fresh data
+                        tournamentService.clearCache(`tournament_${tournamentId}`);
+                        const response = await tournamentService.getTournamentById(tournamentId);
                         setTournament(response.data.data);
+                        console.log('Tournament data refreshed:', response.data.data);
                       } catch (err) {
-                        console.error('Error fetching tournament data:', err);
+                        console.error('Error refreshing tournament data:', err);
                       }
                     };
-                    fetchTournamentData();
+                    refreshTournamentData();
                     
                     // Add update to feed
                     setRealTimeUpdates(prev => [
