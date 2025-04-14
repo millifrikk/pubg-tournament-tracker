@@ -21,6 +21,7 @@ const Navbar = () => {
           <Link to="/tournaments" className="navbar-item">Tournaments</Link>
           <Link to="/teams" className="navbar-item">Teams</Link>
           <Link to="/matches/search" className="navbar-item">Find Matches</Link>
+          <Link to="/stats/player" className="navbar-item">Stats</Link>
           
           {isAuthenticated ? (
             <>

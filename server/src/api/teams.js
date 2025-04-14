@@ -355,8 +355,50 @@ router.post('/:id/players', authenticateJWT, async (req, res) => {
       return res.status(404).json({ error: 'Team not found' });
     }
     
-    // Create player with team_id reference
-    const [player] = await db('players')
+    // Check if player already exists by pubgName or pubgId
+    let player = null;
+    
+    if (pubgId) {
+      player = await db('players')
+        .where({ pubg_id: pubgId })
+        .orWhere({ name: pubgName })
+        .orWhere({ pubg_name: pubgName })
+        .first();
+    } else {
+      player = await db('players')
+        .where({ name: pubgName })
+        .orWhere({ pubg_name: pubgName })
+        .first();
+    }
+    
+    if (player) {
+      // Player exists, update their team_id
+      console.log(`Player ${pubgName} exists, updating team_id to ${id}`);
+      
+      // Check if player is already on this team
+      if (player.team_id === id) {
+        return res.status(400).json({ 
+          error: 'Player is already on this team'
+        });
+      }
+      
+      // Update player's team
+      const [updatedPlayer] = await db('players')
+        .where({ id: player.id })
+        .update({
+          team_id: id,
+          updated_at: new Date()
+        })
+        .returning('*');
+      
+      return res.json({
+        message: 'Existing player added to team successfully',
+        data: updatedPlayer
+      });
+    }
+    
+    // Player doesn't exist, create new player with team_id reference
+    const [newPlayer] = await db('players')
       .insert({
         name: pubgName, // For compatibility with existing schema
         pubg_name: pubgName,
@@ -369,8 +411,8 @@ router.post('/:id/players', authenticateJWT, async (req, res) => {
       .returning('*');
     
     res.status(201).json({
-      message: 'Player added to team successfully',
-      data: player
+      message: 'New player added to team successfully',
+      data: newPlayer
     });
   } catch (error) {
     console.error(`Error adding player to team ${req.params.id}:`, error);

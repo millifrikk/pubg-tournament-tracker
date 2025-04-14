@@ -221,29 +221,31 @@ const MatchSearch = () => {
         </div>
         
         {/* Enhanced Mode Toggle */}
-        <div className="enhanced-mode-toggle">
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              name="useEnhancedMode"
-              checked={searchForm.useEnhancedMode}
-              onChange={() => 
-                setSearchForm(prev => ({ 
-                  ...prev, 
-                  useEnhancedMode: !prev.useEnhancedMode 
-                }))
-              }
-            />
-            <span className="toggle-slider"></span>
-          </label>
-          <span className="toggle-label">
-            {searchForm.useEnhancedMode ? 'Enhanced Search Mode' : 'Standard Search Mode'}
-          </span>
-          <span className="toggle-help">
+        <div className="enhanced-mode-toggle mode-toggle-container">
+          <div className="mode-toggle">
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                name="useEnhancedMode"
+                checked={searchForm.useEnhancedMode}
+                onChange={() => 
+                  setSearchForm(prev => ({ 
+                    ...prev, 
+                    useEnhancedMode: !prev.useEnhancedMode 
+                  }))
+                }
+              />
+              <span className="slider round"></span>
+            </label>
+            <span className={`toggle-label ${searchForm.useEnhancedMode ? 'active' : ''}`}>
+              {searchForm.useEnhancedMode ? 'Enhanced Search Mode' : 'Standard Search Mode'}
+            </span>
+          </div>
+          <div className="mode-info">
             {searchForm.useEnhancedMode ? 
               'Using improved error handling and rate limiting' : 
               'Using standard search (may experience timeouts)'}
-          </span>
+          </div>
         </div>
         
         {error && (
@@ -420,13 +422,13 @@ const MatchSearch = () => {
                       
                       <div className="match-details">
                         <div className="match-map">
-                          <strong>Map:</strong> {getMapName(matchData.mapName)}
+                          <strong className="detail-label">Map:</strong> {getMapName(matchData.mapName)}
                         </div>
                         <div className="match-mode">
-                          <strong>Mode:</strong> {getGameMode(matchData.gameMode)}
+                          <strong className="detail-label">Mode:</strong> {getGameMode(matchData.gameMode)}
                         </div>
                         <div className="match-players">
-                          <strong>Players:</strong> {matchData.playerCount || 'Unknown'}
+                          <strong className="detail-label">Players:</strong> {matchData.playerCount || 'Unknown'}
                         </div>
                       </div>
                       
@@ -452,7 +454,7 @@ const MatchSearch = () => {
                     </div>
                     
                     <div className="match-actions">
-                      <Link to={`/matches/${matchId}`} className="btn-secondary">
+                      <Link to={`/matches/${matchId}`} className="btn-primary view-details-btn">
                         View Details
                       </Link>
                     </div>

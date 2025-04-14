@@ -42,12 +42,17 @@ const TeamDetails = () => {
   const handleAddPlayer = async (playerData) => {
     try {
       setError(null);
+      console.log('Adding player with data:', playerData);
       const response = await teamService.addPlayerToTeam(id, playerData);
-      setPlayers(prev => [...prev, response.data]);
+      
+      // Refresh player list after adding a player to ensure we have the latest data
+      const playersResponse = await teamService.getTeamPlayers(id);
+      setPlayers(playersResponse.data || []);
+      
       setShowPlayerForm(false);
     } catch (err) {
       console.error('Error adding player:', err);
-      setError('Failed to add player');
+      setError('Failed to add player: ' + (err.message || 'Unknown error'));
     }
   };
   
@@ -78,15 +83,15 @@ const TeamDetails = () => {
   };
   
   if (loading) {
-    return <div className="p-4 text-center">Loading team details...</div>;
+    return <div className="p-4 text-center text-light-100">Loading team details...</div>;
   }
   
   if (error) {
     return (
-      <div className="p-4 bg-red-100 text-red-700 rounded">
+      <div className="p-4 bg-dark-400 text-accent-red rounded border border-accent-red border-opacity-50">
         <p>{error}</p>
         <button 
-          className="mt-2 px-4 py-2 bg-blue-500 text-white rounded"
+          className="mt-2 btn btn-primary"
           onClick={() => navigate('/teams')}
         >
           Back to Teams
@@ -97,10 +102,10 @@ const TeamDetails = () => {
   
   if (!team) {
     return (
-      <div className="p-4 text-center">
+      <div className="p-4 text-center text-light-100">
         <p>Team not found</p>
         <button 
-          className="mt-2 px-4 py-2 bg-blue-500 text-white rounded"
+          className="mt-2 btn btn-primary"
           onClick={() => navigate('/teams')}
         >
           Back to Teams
@@ -112,7 +117,7 @@ const TeamDetails = () => {
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-2xl font-bold text-light-100">
           {team.logo_url && (
             <img 
               src={team.logo_url} 
@@ -121,10 +126,10 @@ const TeamDetails = () => {
             />
           )}
           {team.name}
-          {team.tag && <span className="ml-2 text-gray-500">({team.tag})</span>}
+          {team.tag && <span className="ml-2 text-light-200">({team.tag})</span>}
         </h1>
         <button 
-          className="px-4 py-2 bg-blue-500 text-white rounded"
+          className="btn btn-primary"
           onClick={() => navigate('/teams')}
         >
           Back to Teams
@@ -133,9 +138,9 @@ const TeamDetails = () => {
       
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Team Players</h2>
+          <h2 className="text-xl font-semibold text-light-100">Team Players</h2>
           <button 
-            className="px-4 py-2 bg-green-500 text-white rounded"
+            className="px-4 py-2 bg-accent-green text-white rounded"
             onClick={() => setShowPlayerForm(!showPlayerForm)}
           >
             {showPlayerForm ? 'Cancel' : 'Add Player'}
@@ -143,8 +148,8 @@ const TeamDetails = () => {
         </div>
         
         {showPlayerForm && (
-          <div className="mb-4 p-4 bg-gray-100 rounded">
-            <h3 className="text-lg font-medium mb-2">Add New Player</h3>
+          <div className="mb-4 p-4 bg-dark-400 rounded border border-dark-100">
+            <h3 className="text-lg font-medium mb-2 text-light-100">Add New Player</h3>
             <PlayerForm 
               onSubmit={handleAddPlayer} 
               onCancel={() => setShowPlayerForm(false)}

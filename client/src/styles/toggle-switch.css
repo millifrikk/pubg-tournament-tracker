@@ -5,9 +5,10 @@
   align-items: center;
   margin: 20px 0;
   padding: 15px;
-  background-color: #f8f9fa;
+  background-color: #1d1d1d;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border: 1px solid #333;
 }
 
 .mode-toggle {
@@ -21,12 +22,13 @@
 
 .toggle-label {
   cursor: pointer;
-  color: #6c757d;
+  color: #e0e0e0;
   transition: color 0.3s ease;
+  font-weight: 500;
 }
 
 .toggle-label.active {
-  color: #007bff;
+  color: #1e90ff;
   font-weight: 600;
 }
 
@@ -66,11 +68,11 @@
 }
 
 input:checked + .slider {
-  background-color: #007bff;
+  background-color: #1e90ff;
 }
 
 input:focus + .slider {
-  box-shadow: 0 0 1px #007bff;
+  box-shadow: 0 0 1px #1e90ff;
 }
 
 input:checked + .slider:before {
@@ -88,7 +90,7 @@ input:checked + .slider:before {
 .mode-info {
   margin-top: 10px;
   font-size: 13px;
-  color: #6c757d;
+  color: #e0e0e0;
   text-align: center;
 }
 

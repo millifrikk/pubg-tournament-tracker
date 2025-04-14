@@ -5,6 +5,9 @@ import { SocketProvider } from './contexts/SocketContext';
 // Import the reconciliation fix
 import './utils/reactReconciliationFix';
 
+// Import the new stats page
+import PlayerStatsPage from './pages/stats/PlayerStatsPage';
+
 // Components
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
@@ -75,6 +78,10 @@ const App = () => {
             <Route path="/matches/:id" element={<MatchDetails />} />
             
             <Route path="/test-connection" element={<TestConnection />} />
+            
+            {/* New route for player stats */}
+            <Route path="/stats/player/:playerId" element={<PlayerStatsPage />} />
+            <Route path="/stats/player" element={<PlayerStatsPage />} />
             
             <Route path="*" element={<NotFound />} />
           </Routes>

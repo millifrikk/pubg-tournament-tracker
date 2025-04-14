@@ -50,7 +50,15 @@ class TeamService {
   
   // Add player to team
   async addPlayerToTeam(teamId, playerData) {
-    return apiService.post(`${BASE_URL}/${teamId}/players`, playerData);
+    console.log('TeamService: Adding player to team', teamId, 'with data:', playerData);
+    try {
+      const response = await apiService.post(`${BASE_URL}/${teamId}/players`, playerData);
+      console.log('Add player response:', response);
+      return response;
+    } catch (error) {
+      console.error('Error in addPlayerToTeam:', error);
+      throw error;
+    }
   }
   
   // Remove player from team

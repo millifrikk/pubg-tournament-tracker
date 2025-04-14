@@ -1,11 +1,109 @@
 import axios from 'axios';
 import authService from './authService';
-import cacheService from './cacheService';
 
-// Create a service for handling match-related API calls with enhanced error handling
-const matchesServiceEnhanced = {
+// Import the cache service if available
+let cacheService;
+try {
+  cacheService = require('./cacheService').default;
+} catch (e) {
+  // Create a simple cache if the service doesn't exist
+  cacheService = {
+    getMatch: () => null,
+    storeMatch: () => {},
+    clearOldCache: () => {}
+  };
+  console.warn('CacheService not available, using fallback cache');
+}
+
+class MatchesServiceEnhanced {
   /**
-   * Get match details by ID with caching support and better error handling
+   * Search for matches with enhanced error handling and retry logic
+   * @param {Object} criteria - Search criteria 
+   * @returns {Promise<Object>} Search results
+   */
+  async searchMatches(criteria) {
+    try {
+      // Get auth token if available
+      const token = authService.getToken();
+      
+      // Request headers
+      const headers = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      // Implement retry logic with exponential backoff
+      let retries = 2;
+      let lastError = null;
+      
+      while (retries >= 0) {
+        try {
+          console.log(`Searching for matches (attempt ${2 - retries + 1}/3)`);
+          
+          // Add a timeout to prevent hanging requests
+          const response = await axios.post('/api/matches/search', criteria, { 
+            headers,
+            timeout: 30000 // 30 second timeout for search
+          });
+          
+          // Make sure we return the data in the expected format
+          return response.data;
+        } catch (error) {
+          lastError = error;
+          
+          // If it's a 404 or other specific error, don't retry
+          if (error.response && error.response.status === 404) {
+            throw error;
+          }
+          
+          // Don't retry if we've exhausted retries
+          if (retries <= 0) {
+            break;
+          }
+          
+          // Wait before retry (2s, then 4s)
+          const delay = (3 - retries) * 2000;
+          console.log(`Search failed. Retrying after ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          retries--;
+        }
+      }
+      
+      // If we reach here, all retries failed
+      console.error('All search attempts failed:', lastError);
+      
+      // Handle specific error cases
+      if (lastError.response) {
+        // Server responded with an error status
+        if (lastError.response.status === 401) {
+          throw new Error('Authentication required');
+        } else if (lastError.response.status === 429) {
+          throw new Error('API rate limit exceeded. Please try again later.');
+        } else {
+          throw new Error(`API error: ${lastError.response.data?.error || lastError.response.statusText || 'Unknown error'}`);
+        }
+      } else if (lastError.code === 'ECONNABORTED') {
+        // Request timed out
+        throw new Error('Request timed out. The server might be overloaded or try a more specific search.');
+      } else if (lastError.code === 'ECONNRESET') {
+        // Connection reset by server
+        throw new Error('Connection reset by server. Please try a more specific search with fewer results.');
+      } else if (lastError.request) {
+        // No response received
+        throw new Error('No response from server. Please check your connection and try again.');
+      } else {
+        // Something else went wrong
+        throw lastError;
+      }
+    } catch (error) {
+      console.error('Error in searchMatches:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get match details by ID with enhanced error handling, retry logic and caching
    * @param {string} matchId - PUBG match ID
    * @param {string} platform - Platform (default: steam)
    * @param {boolean} bypassCache - Force refresh from API even if cached
@@ -14,7 +112,7 @@ const matchesServiceEnhanced = {
   async getMatchDetails(matchId, platform = 'steam', bypassCache = false) {
     try {
       // First, check if we have this match cached (unless bypass requested)
-      if (!bypassCache) {
+      if (!bypassCache && cacheService) {
         const cachedMatch = cacheService.getMatch(matchId, platform);
         if (cachedMatch) {
           console.log(`Using cached data for match: ${matchId}`);
@@ -31,16 +129,18 @@ const matchesServiceEnhanced = {
         headers.Authorization = `Bearer ${token}`;
       }
 
-      // Make API request with retry logic
-      console.log(`Fetching match data from API: ${matchId}`);
+      // Implement retry logic with exponential backoff
       let retries = 2;
       let lastError = null;
       
       while (retries >= 0) {
         try {
+          console.log(`Fetching match data from API: ${matchId} (attempt ${2 - retries + 1}/3)`);
+          
+          // Make API request with timeout
           const response = await axios.get(`/api/matches/${matchId}?platform=${platform}`, { 
             headers,
-            timeout: 15000 // 15 second timeout
+            timeout: 30000 // 30 second timeout
           });
           
           // If response is empty or missing key attributes, throw an error
@@ -49,7 +149,9 @@ const matchesServiceEnhanced = {
           }
           
           // Cache the successful response
-          cacheService.storeMatch(matchId, platform, response.data);
+          if (cacheService) {
+            cacheService.storeMatch(matchId, platform, response.data);
+          }
           
           return response.data;
         } catch (error) {
@@ -65,76 +167,75 @@ const matchesServiceEnhanced = {
             break;
           }
           
-          // Wait before retry (1s, then 2s)
-          const delay = (2 - retries) * 1000 + 1000;
-          console.log(`Retrying after ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          // For rate limiting, wait longer
+          if (error.response && error.response.status === 429) {
+            // Check cache as fallback for rate limiting
+            if (cacheService) {
+              const cachedMatch = cacheService.getMatch(matchId, platform);
+              if (cachedMatch) {
+                console.log('Using cached data due to rate limiting');
+                return cachedMatch;
+              }
+            }
+            
+            const delay = 5000; // 5 seconds for rate limit
+            console.log(`Rate limit hit. Waiting ${delay}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            // Regular exponential backoff for other errors
+            const delay = (3 - retries) * 2000;
+            console.log(`Request failed. Retrying after ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
           
           retries--;
         }
       }
       
       // If we reach here, all retries failed
+      console.error('All match detail requests failed:', lastError);
+      
+      // Check if we have any cached data as fallback
+      if (cacheService) {
+        const cachedMatch = cacheService.getMatch(matchId, platform);
+        if (cachedMatch) {
+          console.log('Using cached data after all retries failed');
+          return cachedMatch;
+        }
+      }
       
       // Handle specific error cases
       if (lastError.response) {
-        // Handle rate limit specifically
-        if (lastError.response.status === 429) {
-          console.warn('Rate limit reached for PUBG API, checking cache for fallback');
-          
-          // Check if we have any cached data as fallback
-          const cachedMatch = cacheService.getMatch(matchId, platform);
-          if (cachedMatch) {
-            console.log('Using cached data due to rate limiting');
-            return cachedMatch;
-          }
-          
+        if (lastError.response.status === 404) {
+          throw new Error('Match not found');
+        } else if (lastError.response.status === 429) {
           throw new Error('API rate limit exceeded and no cached data available. Please try again later.');
-        } 
-        else if (lastError.response.status === 401) {
+        } else if (lastError.response.status === 401) {
           throw new Error('Authentication required');
         } else {
           throw new Error(`API error: ${lastError.response.data?.error || 'Unknown error'}`);
         }
       } else if (lastError.code === 'ECONNABORTED') {
-        console.warn('Request timeout, checking cache for fallback');
-        // Check cache as fallback
-        const cachedMatch = cacheService.getMatch(matchId, platform);
-        if (cachedMatch) {
-          console.log('Using cached data due to timeout');
-          return cachedMatch;
-        }
+        // Request timed out
         throw new Error('Request timed out. The server might be overloaded.');
       } else if (lastError.code === 'ECONNRESET') {
-        console.warn('Connection reset by server, checking cache for fallback');
-        // Check cache as fallback
-        const cachedMatch = cacheService.getMatch(matchId, platform);
-        if (cachedMatch) {
-          console.log('Using cached data due to connection reset');
-          return cachedMatch;
-        }
+        // Connection reset by server
         throw new Error('Connection reset by server. Please try again later.');
       } else if (lastError.request) {
-        // No response received, check cache as fallback
-        const cachedMatch = cacheService.getMatch(matchId, platform);
-        if (cachedMatch) {
-          console.log('Using cached data due to connection issue');
-          return cachedMatch;
-        }
-        
+        // No response received
         throw new Error('No response from server. Please check your connection.');
       } else {
         // Something else went wrong
         throw lastError;
       }
     } catch (error) {
-      console.error(`Error getting match details: ${matchId}`, error);
+      console.error('Error in getMatchDetails:', error);
       throw error;
     }
-  },
+  }
   
   /**
-   * Get telemetry data for a match with caching
+   * Get telemetry data for a match with enhanced error handling and caching
    * @param {string} matchId - PUBG match ID
    * @param {string} telemetryUrl - URL to telemetry data (if known)
    * @param {string} platform - Platform (default: steam)
@@ -195,135 +296,82 @@ const matchesServiceEnhanced = {
         }
       }
 
-      // Make API request to get telemetry data
-      console.log(`Fetching telemetry data for match: ${matchId}`);
-      
-      // Use our server endpoint instead of direct telemetry URL
-      // This helps avoid CORS issues and provides better error handling
-      const response = await axios.get(`/api/telemetry/${matchId}?platform=${platform}`, { 
-        headers,
-        timeout: 45000 // Extended timeout for large telemetry files
-      });
-      
-      // Cache the telemetry data
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify(response.data));
-        console.log(`Cached telemetry data for match: ${matchId}`);
-      } catch (e) {
-        // Local storage might be full - telemetry can be very large
-        console.warn('Could not cache telemetry data - likely too large for localStorage');
-        // Try to clear some space
-        cacheService.clearOldCache();
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching telemetry:', error);
-      
-      // Handle specific error cases
-      if (error.response) {
-        if (error.response.status === 404) {
-          throw new Error('Telemetry data not found');
-        } else if (error.response.status === 429) {
-          throw new Error('API rate limit exceeded. Please try again later.');
-        } else {
-          throw new Error(`API error: ${error.response.data?.error || 'Unknown error'}`);
-        }
-      } else if (error.code === 'ECONNABORTED') {
-        throw new Error('Request timed out. Telemetry data is large and may take time to load.');
-      } else if (error.code === 'ECONNRESET') {
-        throw new Error('Connection reset by server. Please try again later.');
-      } else if (error.request) {
-        throw new Error('No response from server. Please check your connection.');
-      } else {
-        throw error;
-      }
-    }
-  },
-  
-  /**
-   * Search for matches based on criteria with improved reliability
-   * @param {Object} criteria - Search criteria
-   * @returns {Promise<Object>} Search results
-   */
-  async searchMatches(criteria) {
-    try {
-      // Get auth token if available
-      const token = authService.getToken();
-      
-      // Request headers
-      const headers = {};
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-
       // Implement retry logic with exponential backoff
       let retries = 2;
       let lastError = null;
       
       while (retries >= 0) {
         try {
-          console.log(`Searching for matches (attempt ${2 - retries + 1}/3)`);
+          console.log(`Fetching telemetry data from URL: ${telemetryUrl} (attempt ${2 - retries + 1}/3)`);
           
-          // Add a timeout to prevent hanging requests
-          const response = await axios.post('/api/matches/search', criteria, { 
+          // Make API request with extended timeout for large telemetry files
+          const response = await axios.get(telemetryUrl, { 
             headers,
-            timeout: 30000 // 30 second timeout for search
+            timeout: 60000 // 60 second timeout for telemetry
           });
           
-          // Make sure we return the data in the expected format
+          // Cache the telemetry data
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(response.data));
+            console.log(`Cached telemetry data for match: ${matchId}`);
+          } catch (e) {
+            // Local storage might be full - telemetry can be very large
+            console.warn('Could not cache telemetry data - likely too large for localStorage');
+            // Try to clear some space
+            if (cacheService && cacheService.clearOldCache) {
+              cacheService.clearOldCache();
+            }
+          }
+          
           return response.data;
         } catch (error) {
           lastError = error;
+          
+          // If it's a 404, don't retry
+          if (error.response && error.response.status === 404) {
+            throw new Error('Telemetry data not found');
+          }
           
           // Don't retry if we've exhausted retries
           if (retries <= 0) {
             break;
           }
           
-          // Wait before retry (2s, then 4s)
-          const delay = (3 - retries) * 2000;
-          console.log(`Search failed. Retrying after ${delay}ms...`);
+          // Wait before retry (5s, then 10s) - telemetry is large so we wait longer
+          const delay = (3 - retries) * 5000;
+          console.log(`Telemetry request failed. Retrying after ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           
           retries--;
         }
       }
       
-      // If we reach here, all retries failed
-      console.error('All search attempts failed:', lastError);
-      
-      // Handle specific error cases
+      // Handle specific error cases after all retries failed
       if (lastError.response) {
-        // Server responded with an error status
-        if (lastError.response.status === 401) {
-          throw new Error('Authentication required');
+        if (lastError.response.status === 404) {
+          throw new Error('Telemetry data not found');
         } else if (lastError.response.status === 429) {
           throw new Error('API rate limit exceeded. Please try again later.');
         } else {
-          throw new Error(`API error: ${lastError.response.data?.error || lastError.response.statusText || 'Unknown error'}`);
+          throw new Error(`API error: ${lastError.response.data?.error || 'Unknown error'}`);
         }
       } else if (lastError.code === 'ECONNABORTED') {
-        // Request timed out
-        throw new Error('Request timed out. The server might be overloaded.');
+        throw new Error('Request timed out. Telemetry data might be too large.');
       } else if (lastError.code === 'ECONNRESET') {
-        // Connection reset by server
-        throw new Error('Connection reset by server. Please try again later.');
+        throw new Error('Connection reset while fetching telemetry. Please try again later.');
       } else if (lastError.request) {
-        // No response received
         throw new Error('No response from server. Please check your connection.');
       } else {
-        // Something else went wrong
         throw lastError;
       }
     } catch (error) {
-      console.error('Error in searchMatches:', error);
+      console.error('Error in getTelemetry:', error);
       throw error;
     }
-  },
+  }
   
   /**
-   * Register a match to a tournament
+   * Register a match to a tournament with enhanced error handling
    * @param {Object} matchData - Match registration data
    * @returns {Promise<Object>} Registration result
    */
@@ -340,23 +388,26 @@ const matchesServiceEnhanced = {
         Authorization: `Bearer ${token}`
       };
 
-      // Make API request with retry logic
-      let retries = 2;
+      // Implement retry logic with exponential backoff
+      let retries = 1; // Fewer retries for write operations
       let lastError = null;
       
       while (retries >= 0) {
         try {
+          console.log(`Registering match (attempt ${1 - retries + 1}/2)`);
+          
+          // Make API request
           const response = await axios.post('/api/matches/register', matchData, { 
             headers,
-            timeout: 10000 // 10 second timeout
+            timeout: 30000 // 30 second timeout
           });
           
           return response.data;
         } catch (error) {
           lastError = error;
           
-          // If it's a 404 or 409, don't retry (match not found or already registered)
-          if (error.response && (error.response.status === 404 || error.response.status === 409)) {
+          // If it's a 404, 401, or 409, don't retry
+          if (error.response && [404, 401, 409].includes(error.response.status)) {
             throw error;
           }
           
@@ -365,16 +416,15 @@ const matchesServiceEnhanced = {
             break;
           }
           
-          // Wait before retry (1s, then 2s)
-          const delay = (2 - retries) * 1000 + 1000;
-          console.log(`Retrying match registration after ${delay}ms...`);
+          // Wait before retry (3s)
+          const delay = 3000;
+          console.log(`Registration failed. Retrying after ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           
           retries--;
         }
       }
       
-      // If we reach here, all retries failed
       // Handle specific error cases
       if (lastError.response) {
         // Server responded with an error status
@@ -397,10 +447,10 @@ const matchesServiceEnhanced = {
         throw lastError;
       }
     } catch (error) {
-      console.error('Error registering match:', error);
+      console.error('Error in registerMatch:', error);
       throw error;
     }
   }
-};
+}
 
-export default matchesServiceEnhanced;
+export default new MatchesServiceEnhanced();

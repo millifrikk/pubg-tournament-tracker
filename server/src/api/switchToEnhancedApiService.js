@@ -1,69 +1,36 @@
 const fs = require('fs');
 const path = require('path');
 
-/**
- * Utility script to switch between standard and enhanced PUBG API services
- * Run this with node: 
- * - node src/api/switchToEnhancedApiService.js --enhanced
- * - node src/api/switchToEnhancedApiService.js --standard
- */
+const enhancedApi = path.join(__dirname, '../services/pubgApiServiceEnhanced.js');
+const standardApi = path.join(__dirname, '../services/pubgApiService.js');
+const backupApi = path.join(__dirname, '../services/pubgApiService.js.backup');
 
-// Define paths
-const standardApiPath = path.join(__dirname, '..', 'services', 'pubgApiService.js');
-const enhancedApiPath = path.join(__dirname, '..', 'services', 'pubgApiServiceEnhanced.js');
-const backupPath = path.join(__dirname, '..', 'services', 'pubgApiService.js.backup');
+const mode = process.argv[2];
 
-// Get command line argument
-const args = process.argv.slice(2);
-const shouldUseEnhanced = args.includes('--enhanced');
-const shouldUseStandard = args.includes('--standard');
-
-async function switchApiService() {
-  try {
-    // Validate arguments
-    if (!shouldUseEnhanced && !shouldUseStandard) {
-      console.error('Please specify either --enhanced or --standard');
-      process.exit(1);
-    }
-    
-    if (shouldUseEnhanced) {
-      console.log('Switching to enhanced PUBG API service with improved rate limiting and error handling...');
-      
-      // Check if enhanced API service exists
-      if (!fs.existsSync(enhancedApiPath)) {
-        console.error('Enhanced API service not found at:', enhancedApiPath);
-        process.exit(1);
-      }
-      
-      // Backup standard API service if not already backed up
-      if (!fs.existsSync(backupPath)) {
-        fs.copyFileSync(standardApiPath, backupPath);
-        console.log('Standard API service backed up to:', backupPath);
-      }
-      
-      // Copy enhanced API service to standard API path
-      fs.copyFileSync(enhancedApiPath, standardApiPath);
-      console.log('Enhanced API service now active');
-    } else if (shouldUseStandard) {
-      console.log('Switching back to standard PUBG API service...');
-      
-      // Check if backup exists
-      if (!fs.existsSync(backupPath)) {
-        console.error('No backup of standard API service found');
-        process.exit(1);
-      }
-      
-      // Restore standard API service from backup
-      fs.copyFileSync(backupPath, standardApiPath);
-      console.log('Standard API service restored from backup');
-    }
-    
-    console.log('API service switched successfully. Please restart the server for changes to take effect.');
-  } catch (error) {
-    console.error('Error switching API service:', error);
-    process.exit(1);
+if (mode === '--enhanced') {
+  // Backup current service if it exists and backup doesn't exist
+  if (fs.existsSync(standardApi) && !fs.existsSync(backupApi)) {
+    console.log('Backing up current API service...');
+    fs.copyFileSync(standardApi, backupApi);
   }
+  
+  // Copy enhanced service
+  if (fs.existsSync(enhancedApi)) {
+    console.log('Activating enhanced PUBG API service...');
+    fs.copyFileSync(enhancedApi, standardApi);
+    console.log('Switched to Enhanced PUBG API Service');
+  } else {
+    console.error('Error: Enhanced API service file not found at', enhancedApi);
+  }
+} else if (mode === '--standard') {
+  // Restore standard service from backup
+  if (fs.existsSync(backupApi)) {
+    console.log('Restoring standard PUBG API service...');
+    fs.copyFileSync(backupApi, standardApi);
+    console.log('Switched to Standard PUBG API Service');
+  } else {
+    console.error('Error: Backup API service file not found at', backupApi);
+  }
+} else {
+  console.log('Usage: node switchToEnhancedApiService.js --enhanced|--standard');
 }
-
-// Run the script
-switchApiService();

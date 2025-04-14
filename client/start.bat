@@ -1,53 +1,67 @@
 @echo off
-echo Starting PUBG Tournament Tracker Frontend...
-echo.
-echo If you haven't started the backend server yet, please run the start.bat file in the server directory first.
-echo.
-echo Server: http://localhost:5000 (backend API)
-echo Client: http://localhost:3000 (frontend)
+echo ======================================================
+echo    PUBG Tournament Tracker - Client Initialization
+echo ======================================================
 echo.
 
-:: Check if Node.js is installed
+echo [1/5] Checking for Node.js installation...
 where node >nul 2>nul
-if %ERRORLEVEL% neq 0 (
-    echo Error: Node.js is not installed or not in PATH.
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Node.js is not installed or not in your PATH.
     echo Please install Node.js from https://nodejs.org/
+    echo.
     pause
     exit /b 1
 )
+echo Node.js found!
 
-:: Check if npm is installed
-where npm >nul 2>nul
-if %ERRORLEVEL% neq 0 (
-    echo Error: npm is not installed or not in PATH.
-    echo Please install Node.js from https://nodejs.org/
-    pause
-    exit /b 1
-)
-
-:: Set current directory explicitly
-cd /d "%~dp0"
-
-:: Install dependencies if needed
-if not exist node_modules (
-    echo Installing dependencies...
-    call npm install
-    if %ERRORLEVEL% neq 0 (
-        echo Error: Failed to install dependencies.
+echo [2/5] Checking server availability...
+curl -s http://localhost:5000/api/status >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo WARNING: Backend server doesn't appear to be running at http://localhost:5000
+    echo          You may encounter API errors if you continue.
+    echo.
+    choice /C YN /M "Do you want to continue anyway?"
+    if %ERRORLEVEL% EQU 2 (
+        echo Startup canceled. Please start the server first using server\start.bat
         pause
         exit /b 1
     )
 )
 
-:: Start the client
-echo Starting client application...
-call npm start
-
-:: Keep the window open if there's an error
-if %ERRORLEVEL% neq 0 (
-    echo Error: Failed to start client application.
+echo [3/5] Installing core dependencies...
+call npm install
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Failed to install core dependencies.
+    echo Try running 'npm install' manually to see detailed errors.
+    echo.
     pause
     exit /b 1
 )
+echo Core dependencies installed successfully!
 
-pause
+echo [4/5] Installing Tailwind CSS and related packages...
+call npm install tailwindcss postcss autoprefixer --save
+if %ERRORLEVEL% NEQ 0 (
+    echo WARNING: Failed to install Tailwind CSS dependencies.
+    echo          The application will still start but may not have the dark theme.
+    echo.
+)
+echo Tailwind CSS dependencies installed!
+
+echo [5/5] Starting development server...
+echo.
+echo Client starting at http://localhost:3000
+echo To stop the server, press Ctrl+C
+echo.
+echo ======================================================
+echo.
+call npm start
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ERROR: Development server failed to start properly.
+    echo Check the logs above for details.
+    echo.
+    pause
+)

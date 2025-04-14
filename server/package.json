@@ -4,8 +4,8 @@
   "description": "Backend server for PUBG Tournament Tracker",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "start": "node prestart.js && node src/index.js",
+    "dev": "nodemon --require ./prestart.js src/index.js",
     "knex": "knex --knexfile src/db/knexfile.js",
     "migrate": "npm run knex migrate:latest",
     "migrate:make": "npm run knex migrate:make",
@@ -13,7 +13,9 @@
     "seed:make": "npm run knex seed:make",
     "migrate:sql": "node ./src/db/runMigrations.js",
     "db:fix": "npm run migrate:sql",
-    "test": "jest"
+    "fix:matches": "node fix_match_search.js",
+    "test": "jest",
+    "prestart": "node prestart.js"
   },
   "keywords": [
     "pubg",

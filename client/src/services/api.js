@@ -85,7 +85,14 @@ class ApiService {
           console.log('Auth error detected, token removed');
         }
         
-        throw new Error(responseData.error || `Request failed with status ${response.status}`);
+        // Log detailed error information
+        console.error('API response error:', {
+          status: response.status,
+          statusText: response.statusText,
+          responseData
+        });
+        
+        throw new Error(responseData.error || responseData.details || `Request failed with status ${response.status}`);
       }
       
       return responseData;

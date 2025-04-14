@@ -22,6 +22,9 @@ const apiRoutes = require('./api');
 // Import error handling middleware
 const errorHandlingMiddleware = require('./middleware/errorHandling');
 
+// Run service validator
+const serviceValidator = require('./services/serviceValidator');
+
 // Initialize app
 const app = express();
 
@@ -57,7 +60,16 @@ app.use('/api', apiRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date() });
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date(),
+    services: {
+      pubgApi: {
+        isValid: serviceValidator.isValid,
+        isEnhanced: serviceValidator.isEnhanced
+      }
+    }
+  });
 });
 
 // Apply the enhanced error handling middleware
@@ -90,6 +102,17 @@ async function startServer() {
       console.log('Login with:');
       console.log('  Username: admin');
       console.log('  Password: admin123');
+      
+      // Show API status
+      console.log('PUBG API Service Status:');
+      console.log('- Enhanced API Service:', serviceValidator.isEnhanced ? 'Active ✅' : 'Inactive ❌');
+      console.log('- API Functions Available:', serviceValidator.isValid ? 'Yes ✅' : 'No ❌');
+      
+      if (!serviceValidator.isEnhanced) {
+        console.log('');
+        console.log('To enable the Enhanced API Service with better error handling:');
+        console.log('node src/api/switchToEnhancedApiService.js --enhanced');
+      }
     });
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -98,9 +121,6 @@ async function startServer() {
 }
 
 // Start the application
-// Verify enhanced PUBG API service
-const pubgApiService = require('./services/pubgApiService');
-console.log('Enhanced PUBG API service loaded with rate limiting:', !!pubgApiService.searchCustomMatches);
 startServer();
 
 // Handle unhandled promise rejections
