@@ -35,12 +35,14 @@ A comprehensive application for managing PUBG tournaments, with special focus on
 
 ## Getting Started
 
+Please refer to our [Getting Started Guide](docs/guides/GETTING_STARTED.md) for detailed setup instructions.
+
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (v16+)
 - [Docker](https://www.docker.com/) and Docker Compose
 - [PUBG API Key](https://developer.pubg.com/)
 
-### Setup & Installation
+### Quick Setup
 
 1. **Clone the repository**
    ```bash
@@ -60,37 +62,12 @@ A comprehensive application for managing PUBG tournaments, with special focus on
    docker-compose up -d postgres redis
    ```
 
-4. **Install dependencies**
+4. **Install dependencies and start the application**
    ```bash
-   # Install server dependencies
-   cd ../server
-   npm install
-
-   # Install client dependencies
-   cd ../client
-   npm install
+   # Run the setup script
+   cd ..
+   ./scripts/setup.sh  # or setup.bat on Windows
    ```
-
-5. **Run database migrations**
-   ```bash
-   cd ../server
-   npm run migrate
-   ```
-
-6. **Start the development servers**
-   ```bash
-   # In one terminal, start the server
-   cd server
-   npm run dev
-
-   # In another terminal, start the client
-   cd client
-   npm start
-   ```
-
-7. **Access the application**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:5000
 
 ## Project Structure
 
@@ -100,16 +77,11 @@ pubg-tournament-tracker/
 │   ├── public/             # Static files
 │   └── src/                # React source code
 │       ├── components/     # Reusable components
-│       │   ├── common/     # Common UI components
-│       │   ├── layout/     # Layout components
-│       │   └── visualizations/ # Data visualization components
 │       ├── contexts/       # Context providers
 │       ├── pages/          # Page components
 │       ├── services/       # API services
 │       └── utils/          # Utility functions
 ├── docker/                 # Docker configuration
-│   ├── init-scripts/       # PostgreSQL initialization scripts
-│   └── docker-compose.yml  # Docker Compose configuration
 ├── server/                 # Node.js backend
 │   ├── src/                # Server source code
 │   │   ├── api/            # API routes
@@ -119,9 +91,34 @@ pubg-tournament-tracker/
 │   │   ├── services/       # Business logic
 │   │   ├── socket/         # WebSocket implementation
 │   │   └── utils/          # Utility functions
-│   └── .env                # Environment variables (not committed)
 └── docs/                   # Documentation
+    ├── deployment/         # Deployment guides
+    ├── fixes/              # Issue fix documentation
+    ├── guides/             # User and developer guides
+    └── implementation/     # Implementation details
 ```
+
+## Documentation
+
+Our documentation is organized into the following sections:
+
+- **[Guides](docs/guides/)** - General guides for setup, usage, and testing
+  - [Getting Started](docs/guides/GETTING_STARTED.md)
+  - [API Monitoring Guide](docs/guides/API_MONITORING_GUIDE.md)
+  - [Testing Checklist](docs/guides/TESTING_CHECKLIST.md)
+
+- **[Implementation](docs/implementation/)** - Technical implementation details
+  - [Implementation Summary](docs/implementation/IMPLEMENTATION_SUMMARY.md)
+  - [Status Updates](docs/implementation/STATUS_SUMMARY_MARCH_2025.md)
+
+- **[Deployment](docs/deployment/)** - Deployment-related documentation
+  - [Deployment Roadmap](docs/deployment/DEPLOYMENT_ROADMAP.md)
+  - [Dependency Updates](docs/deployment/dependency-updates.md)
+
+- **[Fixes](docs/fixes/)** - Documentation for specific issue fixes
+  - [Authentication Fix](docs/fixes/AUTHENTICATION_FIX.md)
+  - [Database Fix Instructions](docs/fixes/database_fix_instructions.md)
+  - [PUBG API Integration Fix](docs/fixes/PUBG_API_INTEGRATION_FIX.md)
 
 ## Custom Match Integration
 
@@ -139,21 +136,6 @@ The PUBG API doesn't directly identify custom matches, so we implement several a
 4. **Add Matches to Tournament**: Associate matches with the tournament
 5. **Calculate Standings**: Process match results and generate tournament leaderboard
 6. **View Statistics**: Analyze detailed tournament and player statistics
-
-## API Documentation
-
-The backend API provides comprehensive endpoints for all aspects of tournament management. Key endpoints include:
-
-- `/api/tournaments`: Tournament CRUD operations
-- `/api/matches/search`: Search for potential custom matches
-- `/api/matches/register`: Register a match as a tournament match
-- `/api/teams`: Team management endpoints
-- `/api/players`: Player search and data endpoints
-- `/api/telemetry`: Access processed telemetry data
-- `/api/telemetry/:matchId/heatmap`: Generate heatmap data
-- `/api/telemetry/:matchId/timeline`: Get match event timeline
-
-For full API documentation, see the [API Documentation](docs/API.md).
 
 ## Contributing
 

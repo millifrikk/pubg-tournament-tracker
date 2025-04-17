@@ -5,13 +5,13 @@
         "type": "player",
         "id": "account.4b317798993041f7ba31d58d0998d0d6",
         "attributes": {
-          "banType": "Innocent",
-          "clanId": "clan.90238a49af544b6f967a30f77ed9e40f",
           "name": "Brjanzi",
           "stats": null,
           "titleId": "pubg",
           "shardId": "steam",
-          "patchVersion": ""
+          "patchVersion": "",
+          "banType": "Innocent",
+          "clanId": "clan.90238a49af544b6f967a30f77ed9e40f"
         },
         "relationships": {
           "assets": {
@@ -593,6 +593,6 @@
     },
     "meta": {}
   },
-  "timestamp": 1744892509372,
-  "expires": 1744896109372
+  "timestamp": 1744902570103,
+  "expires": 1744906170103
 }

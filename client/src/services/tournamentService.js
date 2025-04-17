@@ -2,6 +2,7 @@
 
 import apiService from './api';
 
+// Base URL for tournament endpoints
 const BASE_URL = '/api/tournaments';
 
 // Client-side cache for tournament data
@@ -48,15 +49,24 @@ const cache = {
   }
 };
 
+/**
+ * Tournament Service - Consolidated API for tournament management
+ * Combines features from both tournamentService and tournamentApi
+ */
 class TournamentService {
   // Get all tournaments
   async getAllTournaments() {
     return apiService.get(BASE_URL);
   }
   
-  // Get tournament by ID (with caching)
+  // Get tournament by ID with caching
   async getTournamentById(tournamentId) {
-    const cacheKey = `tournament_${tournamentId}`;
+    return this.getTournament(tournamentId);
+  }
+
+  // Get tournament by ID (compatibility method with caching)
+  async getTournament(id) {
+    const cacheKey = `tournament_${id}`;
     
     // Try to get from cache first
     const cachedData = cache.get(cacheKey);
@@ -66,10 +76,10 @@ class TournamentService {
     
     // If not in cache, make API request
     try {
-      console.log(`Fetching tournament ${tournamentId} from API`);
+      console.log(`Fetching tournament ${id} from API`);
       
       // Make direct fetch request to bypass potential issues with the API service
-      const response = await fetch(`/api/tournaments/${tournamentId}`, {
+      const response = await fetch(`/api/tournaments/${id}`, {
         headers: {
           'Cache-Control': 'max-age=30',
           'Accept': 'application/json'
@@ -171,12 +181,17 @@ class TournamentService {
     return apiService.post(`${BASE_URL}/${tournamentId}/matches`, matchData);
   }
   
+  // Remove match from tournament
+  async removeMatchFromTournament(tournamentId, matchId) {
+    return apiService.delete(`${BASE_URL}/${tournamentId}/matches/${matchId}`);
+  }
+  
   // Get tournament leaderboard
   async getTournamentLeaderboard(tournamentId) {
     return apiService.get(`${BASE_URL}/${tournamentId}/leaderboard`);
   }
   
-  // Join tournament (adding this missing function)
+  // Join tournament (alias for addTeamToTournament for backward compatibility)
   async joinTournament(tournamentId, teamId) {
     console.log('Joining tournament:', tournamentId, 'with team:', teamId);
     return this.addTeamToTournament(tournamentId, teamId);
@@ -199,4 +214,5 @@ class TournamentService {
   }
 }
 
+// Export a singleton instance for use across the application
 export default new TournamentService();

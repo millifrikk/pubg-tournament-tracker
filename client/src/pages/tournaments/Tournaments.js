@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import tournamentApi from '../../services/tournamentApi'; // Updated import
+import tournamentService from '../../services/tournamentService'; // Updated import
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const Tournaments = () => {
@@ -12,7 +12,7 @@ const Tournaments = () => {
     const fetchTournaments = async () => {
       try {
         setLoading(true);
-        const response = await tournamentApi.getAllTournaments();
+        const response = await tournamentService.getAllTournaments();
         setTournaments(response.data || []);
       } catch (error) {
         console.error('Error fetching tournaments:', error);
