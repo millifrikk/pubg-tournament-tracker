@@ -1,0 +1,86 @@
+/**
+ * PUBG Tournament Tracker - Dashboard Specific Dark Theme Fixes
+ */
+
+/* Direct targeting for team items in the dashboard */
+.your-teams a,
+.your-teams > div,
+.your-teams > div > div,
+.your-teams > div > a,
+.team-item,
+.team-card,
+.team-list-item,
+a[href*="teams/"],
+div:has(> span:only-child),
+div:has(> span:first-child) {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+  border-radius: 4px !important;
+  margin-bottom: 0.5rem !important;
+  padding: 0.5rem !important;
+  display: block !important;
+  text-decoration: none !important;
+}
+
+/* Target team tags in dashboard by their text content */
+span:contains("[354]"),
+span:contains("[FESF]"),
+span:contains("[FRES]"),
+span:contains("[NLGB]"),
+span:contains("[NLGR]"),
+span:contains("[OGTS]"),
+span:contains("[ICE]"),
+span:contains("[ULFR]"),
+span[id^="tag-"],
+div > span:first-child {
+  background-color: #252525 !important;
+  color: #ffffff !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  border: 1px solid #444444 !important;
+  display: inline-block !important;
+  margin: 2px !important;
+  font-weight: 500 !important;
+}
+
+/* Last resort - target any element with specific tag text */
+span, div, a {
+  color: #ffffff !important;
+}
+
+div, a {
+  background-color: transparent !important;
+}
+
+/* Target any white card in the dashboard */
+.dashboard div[style*="background-color: white"],
+.dashboard div[style*="background-color: #fff"],
+.dashboard div[style*="background: white"],
+.dashboard div[style*="background: #fff"],
+.dashboard div > div > div,
+.dashboard div > div > a {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+}
+
+/* Target the team containers */
+.team-container,
+div:has(> div > span[id*="tag"]),
+div:has(> span[id*="tag"]),
+div:has(> a:has(> span[id*="tag"])) {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+}
+
+/* Target the exact structure seen in the screenshot */
+.dashboard .teams-section > div > div:nth-child(n+3),
+.dashboard .teams-section > div > a:nth-child(n+3) {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+  border-radius: 4px !important;
+  margin-bottom: 0.5rem !important;
+  padding: 0.5rem !important;
+}

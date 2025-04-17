@@ -20,7 +20,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Tournaments from './pages/tournaments/Tournaments';
-import TournamentDetails from './pages/tournaments/TournamentDetails';
+import TournamentDetail from './pages/tournaments/TournamentDetail'; // New enhanced tournament detail page
+import TournamentDetails from './pages/tournaments/TournamentDetails'; // Legacy tournament details page
 import CreateTournament from './pages/tournaments/CreateTournament';
 import Teams from './pages/teams/Teams';
 import TeamDetails from './pages/teams/TeamDetails';
@@ -56,7 +57,8 @@ const App = () => {
             } />
             
             <Route path="/tournaments" element={<Tournaments />} />
-            <Route path="/tournaments/:id" element={<TournamentDetails />} />
+            <Route path="/tournaments/:id" element={<TournamentDetail />} />
+            <Route path="/tournaments/:id/legacy" element={<TournamentDetails />} />
             <Route path="/tournaments/create" element={
               <PrivateRoute>
                 <CreateTournament />

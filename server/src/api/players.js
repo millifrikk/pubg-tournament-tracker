@@ -212,4 +212,140 @@ router.get('/search', async (req, res) => {
   }
 });
 
+/**
+ * @route POST /api/players/assign-to-teams
+ * @desc Assign multiple players to teams
+ * @access Private
+ */
+router.post('/assign-to-teams', authenticateJWT, async (req, res) => {
+  try {
+    const { assignments } = req.body;
+    
+    if (!assignments || !Array.isArray(assignments) || assignments.length === 0) {
+      return res.status(400).json({ error: 'Player assignments are required' });
+    }
+    
+    // Validate assignments
+    const validAssignments = assignments.filter(assignment => 
+      assignment.pubg_id && assignment.team_id
+    );
+    
+    if (validAssignments.length === 0) {
+      return res.status(400).json({ error: 'No valid player assignments provided' });
+    }
+    
+    // Process assignments
+    const results = {
+      assigned: [],
+      errors: []
+    };
+    
+    // Process each assignment
+    for (const assignment of validAssignments) {
+      try {
+        // Check if player exists
+        const existingPlayer = await db('players')
+          .where({ pubg_id: assignment.pubg_id })
+          .first();
+        
+        if (existingPlayer) {
+          // Update existing player
+          const [updatedPlayer] = await db('players')
+            .where({ pubg_id: assignment.pubg_id })
+            .update({ 
+              team_id: assignment.team_id,
+              updated_at: new Date()
+            })
+            .returning('*');
+          
+          results.assigned.push(updatedPlayer.pubg_id);
+        } else {
+          // Create new player
+          const [newPlayer] = await db('players')
+            .insert({
+              pubg_id: assignment.pubg_id,
+              pubg_name: assignment.pubg_name || `Player_${assignment.pubg_id.substring(0, 8)}`,
+              name: assignment.pubg_name || `Player_${assignment.pubg_id.substring(0, 8)}`,
+              team_id: assignment.team_id,
+              platform: assignment.platform || 'steam',
+              created_at: new Date(),
+              updated_at: new Date()
+            })
+            .returning('*');
+          
+          results.assigned.push(newPlayer.pubg_id);
+        }
+      } catch (error) {
+        console.error(`Error processing assignment for player ${assignment.pubg_id}:`, error);
+        results.errors.push({
+          pubg_id: assignment.pubg_id,
+          error: error.message
+        });
+      }
+    }
+    
+    res.json({
+      message: `${results.assigned.length} players assigned to teams`,
+      assigned: results.assigned,
+      errors: results.errors
+    });
+  } catch (error) {
+    console.error('Error assigning players to teams:', error);
+    res.status(500).json({ 
+      error: 'Error assigning players to teams',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/players/extract-from-match
+ * @desc Extract player data from a match
+ * @access Private
+ */
+router.post('/extract-from-match', authenticateJWT, async (req, res) => {
+  try {
+    const { matchId, platform = 'steam' } = req.body;
+    
+    if (!matchId) {
+      return res.status(400).json({ error: 'Match ID is required' });
+    }
+    
+    // Get match data (this would use pubgApiService in a real implementation)
+    // For now, we'll return a mock response
+    const extractedPlayers = {
+      new: [
+        {
+          pubg_id: 'account.1234567890',
+          pubg_name: 'Player1',
+          platform: 'steam'
+        },
+        {
+          pubg_id: 'account.0987654321',
+          pubg_name: 'Player2',
+          platform: 'steam'
+        }
+      ],
+      updated: [
+        {
+          pubg_id: 'account.1111111111',
+          pubg_name: 'Player3',
+          platform: 'steam'
+        }
+      ]
+    };
+    
+    res.json({
+      message: `Extracted ${extractedPlayers.new.length + extractedPlayers.updated.length} players from match`,
+      data: extractedPlayers
+    });
+  } catch (error) {
+    console.error('Error extracting players from match:', error);
+    res.status(500).json({ 
+      error: 'Error extracting players from match',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

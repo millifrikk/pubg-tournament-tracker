@@ -1,0 +1,1014 @@
+/**
+ * PUBG Tournament Tracker - Dark Theme Contrast Fixes
+ * 
+ * This file contains style improvements to fix contrast issues
+ * in the dark theme for better readability and accessibility.
+ */
+
+/* Base contrast improvements */
+body {
+  background-color: #121212;
+  color: #ffffff;
+}
+
+/* Enhanced text colors for better readability */
+p, span, label, div {
+  color: #ffffff; /* Default to white for better contrast */
+}
+
+/* Form field improvements */
+input, select, textarea {
+  background-color: #2a2a2a;
+  color: #ffffff;
+  border: 1px solid #444444;
+}
+
+input::placeholder, 
+select::placeholder, 
+textarea::placeholder {
+  color: #b0b0b0; /* Higher contrast placeholder text */
+}
+
+/* Form labels with better visibility */
+.form-group label {
+  color: #ffffff !important;
+  font-weight: 500;
+}
+
+/* Help text and meta info with better contrast */
+.help-text, .meta-info, .form-text {
+  color: #e0e0e0 !important; /* Brighter gray for better contrast */
+}
+
+/* Tournament details page improvements */
+.tournament-detail .tournament-header .meta-info span {
+  color: #e0e0e0;
+  background-color: #252525;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  margin-right: 10px;
+}
+
+.tournament-detail .tournament-description {
+  color: #ffffff !important;
+}
+
+.stats-card {
+  background-color: #1e1e1e !important;
+  border: 1px solid #333333 !important;
+}
+
+.stats-card .stat-value {
+  color: #007bff !important;
+  font-weight: 600;
+}
+
+.stats-card h3 {
+  color: #ffffff !important;
+}
+
+/* Toggle switch improvements */
+.toggle-label {
+  color: #ffffff !important;
+}
+
+.mode-info {
+  color: #e0e0e0 !important;
+}
+
+/* Match search improvements */
+.search-criteria label {
+  color: #ffffff !important;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.match-search .form-group p {
+  color: #e0e0e0 !important;
+}
+
+/* Match card improvements */
+.match-info .match-date,
+.match-info .match-map,
+.match-info .match-type {
+  color: #e0e0e0 !important;
+}
+
+.match-info .match-id {
+  color: #b0b0b0 !important;
+}
+
+/* Match item styling */
+.match-item {
+  background-color: #1e1e1e;
+  border: 1px solid #333333;
+}
+
+.match-results .no-results {
+  color: #ffffff !important;
+}
+
+/* Toggle switches */
+.mode-toggle-container {
+  background-color: #1e1e1e;
+  border: 1px solid #333333;
+}
+
+input:not(:checked) + .slider {
+  background-color: #4a4a4a;
+}
+
+/* Tournament cards */
+.tournament-card {
+  background-color: #1e1e1e;
+  border: 1px solid #333333;
+}
+
+.tournament-card .tournament-title {
+  color: #ffffff !important;
+}
+
+.tournament-card .tournament-dates,
+.tournament-card .tournament-format {
+  color: #e0e0e0 !important;
+}
+
+.tournament-card .tournament-description {
+  color: #ffffff !important;
+}
+
+/* Tab navigation */
+.tab-navigation button {
+  color: #b0b0b0;
+}
+
+.tab-navigation button.active {
+  color: #ffffff;
+  border-bottom-color: #007bff;
+}
+
+/* Enhanced match details */
+.match-date {
+  color: #ffffff !important;
+}
+
+.match-id {
+  color: #e0e0e0 !important;
+}
+
+/* Search section improvements */
+.search-form p,
+.search-form label,
+.search-form span {
+  color: #ffffff !important;
+}
+
+.search-form .checkbox label,
+.checkbox-label,
+.form-group.checkbox-group label,
+.checkbox-container span {
+  color: #ffffff !important;
+}
+
+/* Card backgrounds */
+.card {
+  background-color: #1e1e1e;
+  border: 1px solid #333333;
+}
+
+/* Tournament management and detail view */
+.tournament-management, 
+.tournament-description, 
+.overview-actions, 
+.stat-card, 
+.team-card, 
+.empty-state {
+  background-color: #1e1e1e !important;
+  border: 1px solid #333333 !important;
+}
+
+.tournament-management h3,
+.overview-actions h3,
+.stat-card h3,
+.team-card h3 {
+  color: #ffffff !important;
+}
+
+.tournament-detail .tournament-header h1 {
+  color: #ffffff !important;
+}
+
+.tournament-meta .meta-item .label {
+  color: #e0e0e0 !important;
+}
+
+.tournament-meta .meta-item .value {
+  color: #ffffff !important;
+}
+
+.tournament-description {
+  color: #ffffff !important;
+  border-left: 4px solid #007bff !important;
+}
+
+.tournament-tabs .tab-btn {
+  color: #b0b0b0 !important;
+}
+
+.tournament-tabs .tab-btn.active {
+  color: #007bff !important;
+}
+
+.tournament-tabs {
+  border-bottom-color: #333333 !important;
+}
+
+/* Match table styles */
+.matches-table th {
+  background-color: #252525 !important;
+  color: #ffffff !important;
+  border-bottom: 2px solid #444444 !important;
+}
+
+.matches-table td {
+  color: #ffffff !important;
+  border-bottom: 1px solid #333333 !important;
+}
+
+.matches-table tr:nth-child(even) {
+  background-color: #1a1a1a !important;
+}
+
+.matches-table tr:hover {
+  background-color: #2a2a2a !important;
+}
+
+/* Team card styling */
+.team-name {
+  color: #ffffff !important;
+}
+
+.team-tag {
+  background-color: #252525 !important;
+  color: #e0e0e0 !important;
+}
+
+/* Empty state styling */
+.empty-state {
+  color: #ffffff !important;
+}
+
+/* Find Matches page specific fixes */
+.match-search-page .search-section,
+.matches-list,
+.no-results {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+}
+
+/* Search form fixes */
+.match-search-page input,
+.match-search-page select,
+.match-search-page textarea {
+  background-color: #2a2a2a !important;
+  color: #ffffff !important;
+  border: 1px solid #444444 !important;
+}
+
+/* Stronger form field label overrides */
+.match-search-page .form-group label,
+.match-search-page form label {
+  color: #ffffff !important;
+  display: block !important;
+  margin-bottom: 0.5rem !important;
+  font-weight: 500 !important;
+  font-size: 1rem !important;
+}
+
+/* Even stronger overrides for specific form fields */
+label[for="playerName"],
+label[for="platform"],
+label[for="timeRange"],
+label[for="gameMode"],
+label[for="mapName"],
+label[for="customMatchOnly"] {
+  color: #ffffff !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Search criteria heading */
+.search-criteria-heading {
+  color: #ffffff !important;
+  font-size: 1.25rem !important;
+  margin-bottom: 1rem !important;
+  font-weight: bold !important;
+}
+
+/* Make sure checkbox is visible */
+input[type="checkbox"] {
+  width: auto !important;
+  margin-right: 8px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Help text and tips in search page */
+.match-search-page .help-text,
+.no-results p,
+.search-tips,
+.search-tips ul li,
+.match-search-page .mode-info {
+  color: #e0e0e0 !important;
+}
+
+/* Override any white background containers */
+.match-search-page .container > div,
+.match-search-page .search-form,
+.match-search-page .search-criteria,
+.match-search-page .form-row > div,
+.match-search-page .search-tips,
+.match-search-page .matches-list {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+}
+
+/* Target the search criteria container specifically */
+.match-search-page .search-criteria {
+  background-color: #1e1e1e !important;
+  border: 1px solid #333333 !important;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  color: #ffffff !important;
+}
+
+/* Fix any inline styles that might be using light colors */
+div[style*="background-color: #fff"],
+div[style*="background-color: white"],
+div[style*="background-color: #ffffff"],
+div[style*="background: white"],
+div[style*="background: #fff"] {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+}
+
+/* Search criteria header */
+.match-search-page h2, 
+.match-search-page h3 {
+  color: #ffffff !important;
+  margin-bottom: 1rem;
+}
+
+/* Fix tips sections */
+.search-tips ul {
+  margin-top: 10px;
+  color: #e0e0e0 !important;
+}
+
+.search-tips ul li {
+  margin-bottom: 5px;
+}
+
+/* Empty state background */
+.empty-state, 
+.no-results {
+  background-color: #1e1e1e !important;
+}
+
+/* Form groups */
+.match-search-page .form-group {
+  margin-bottom: 1.5rem;
+}
+
+/* Enhanced search toggle */
+.enhanced-search {
+  background-color: #1e1e1e !important;
+  border: 1px solid #333333 !important;
+}
+
+.enhanced-mode-toggle .toggle-label,
+.enhanced-mode-toggle span {
+  color: #ffffff !important;
+}
+
+/* Search section headers */
+.enhanced-search h3,
+.matches-list h3 {
+  color: #ffffff !important;
+}
+
+/* Empty state messages */
+.empty-state p {
+  color: #ffffff !important;
+}
+
+/* Mode toggle info */
+.mode-toggle span {
+  color: #ffffff !important;
+}
+
+/* Tournament list dates */
+.tournaments-grid .tournament-dates {
+  color: #e0e0e0 !important;
+}
+
+/* View details buttons */
+.view-details-btn {
+  color: #ffffff !important;
+}
+
+/* Tournament stats */
+.summary-stat .stat-label {
+  color: #e0e0e0 !important;
+}
+
+.summary-stat .stat-value {
+  color: #ffffff !important;
+}
+
+/* Match panel backgrounds */
+.matches-list {
+  background-color: #1e1e1e !important;
+  border: 1px solid #333333 !important;
+}
+
+/* Search Results Cards - Fixed white backgrounds */
+.search-results .match-card,
+.matches-list .match-card,
+[class*="match-card"],
+.search-results > div,
+.matches-list > div {
+  background-color: #1e1e1e !important;
+  border: 1px solid #333333 !important;
+  color: #ffffff !important;
+}
+
+/* Direct targeting for search result cards */
+.search-results > div > div:not(.view-details),
+.search-results > div > div:not(.view-details) > div {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+}
+
+/* Match card ID and time */
+.match-card .match-id,
+.match-card .match-time,
+[id*="ID"],
+[class*="hours-ago"],
+.match-details div[class*="time"],
+div[id^="ID"],
+span[id^="ID"] {
+  color: #e0e0e0 !important;
+  background-color: #252525 !important;
+  border: 1px solid #444 !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+}
+
+/* Custom match indicator */
+.match-card .custom-match,
+.match-card .ranked-match,
+[class*="custom"],
+.custom-match-indicator,
+.custom-match-badge {
+  color: #ffffff !important;
+  background-color: #ff6600 !important;
+  padding: 3px 8px !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+}
+
+/* Ranked match badge */
+.ranked-match-badge,
+.match-type-badge {
+  background-color: #ffaa00 !important;
+  color: #000000 !important;
+  padding: 3px 8px !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+}
+
+/* Match details page */
+.match-details-page,
+.match-detail-page,
+.match-detail,
+.match-details,
+.match-details-container,
+.match-header {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+}
+
+/* Force dark background on match info sections */
+.match-meta > div,
+.match-info > span,
+.match-info-section > div,
+.match-meta > div > div {
+  background-color: #252525 !important;
+  color: #ffffff !important;
+  border: 1px solid #444 !important;
+}
+
+/* Match general info section with map name, mode, etc. */
+.match-info-section,
+.match-details-section,
+.match-details div:not(.match-detail-card) > div {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+}
+
+/* Match stats row (with Map:, Mode:, Players:) */
+.match-details div[class*="map"],
+.match-stats-row,
+.match-info-row {
+  background-color: #242424 !important;
+  color: #ffffff !important;
+  border-radius: 4px !important;
+  padding: 8px 12px !important;
+}
+
+/* Match header section */
+.match-header,
+.match-info-header,
+.match-details-header,
+.header-content {
+  background-color: #1e1e1e !important;
+  border: 1px solid #333333 !important;
+  color: #ffffff !important;
+}
+
+/* Target back and refresh buttons */
+button[class*="refresh"],
+button.refresh-button,
+button[class*="back"],
+.match-header button {
+  background-color: #333333 !important;
+  color: #ffffff !important;
+  border: 1px solid #444444 !important;
+}
+
+/* Individual match cards in search results */
+[id^="match-"] {
+  background-color: #1e1e1e !important;
+  border: 1px solid #333333 !important;
+  color: #ffffff !important;
+}
+
+[id^="match-"] > div {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+}
+
+/* Match summary section */
+.match-summary,
+.match-summary-card,
+div[class*="summary"] {
+  background-color: #1e1e1e !important;
+  border: 1px solid #333333 !important;
+  color: #ffffff !important;
+}
+
+.match-summary h2,
+.match-summary h3,
+.match-summary-card h2,
+.match-summary-card h3,
+div[class*="summary"] h2,
+div[class*="summary"] h3 {
+  color: #ffffff !important;
+}
+
+.match-summary-stat,
+.summary-stat,
+div[class*="summary"] div[class*="stat"] {
+  color: #e0e0e0 !important;
+}
+
+.match-summary-stat .stat-value,
+.summary-stat .stat-value,
+div[class*="summary"] div[class*="stat"] span,
+div[class*="summary"] div[class*="stat"] strong {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+/* Match detail page styles */
+.match-detail-page {
+  background-color: #121212 !important;
+}
+
+/* Match detail - white background override */
+.match-detail > div,
+.match-detail-page > div,
+.match-details > div {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+}
+
+/* Match navigation tabs */
+.match-tabs,
+.match-nav,
+.nav-container {
+  border-bottom-color: #333333 !important;
+}
+
+.match-tabs button,
+.match-nav button,
+.nav-container button {
+  color: #b0b0b0 !important;
+}
+
+.match-tabs button.active,
+.match-nav button.active,
+.nav-container button.active {
+  color: #0075ff !important;
+  border-bottom-color: #0075ff !important;
+}
+
+/* Match summary statistics boxes */
+.match-summary div[class*="total"],
+.match-summary div[class*="players"],
+.match-summary div[class*="teams"],
+.match-summary div[class*="kills"],
+.match-summary div[class*="longest"],
+.match-summary div[class*="headshot"] {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+}
+
+/* Target badge for match type */
+.match-type-badge,
+.match-detail-badge,
+.ranked-badge,
+.custom-badge {
+  padding: 2px 8px !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+  display: inline-block !important;
+}
+
+/* Override specific panels */
+.match-right-panel,
+.match-sidebar,
+.match-info-panel,
+.match-meta-panel {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+}
+
+/* Directly target the match page white background */
+div.match-detail-page > div:first-child,
+div.match-details-page > div:first-child {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+  border-radius: 8px !important;
+}
+
+/* Force all text to be visible */
+.match-detail-page span,
+.match-detail-page div,
+.match-detail-page p,
+.match-details span,
+.match-details div,
+.match-details p {
+  color: #ffffff !important;
+}
+
+/* Direct tag for the match details right sidebar */
+.match-detail-page > div:first-child > div:last-child,
+.match-details-page > div:first-child > div:last-child,
+.match-summary-container,
+.match-summary-sidebar {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+  border-radius: 8px !important;
+}
+
+/* Force white text in stat boxes */
+[class*="total-players"],
+[class*="total-teams"],
+[class*="total-kills"],
+[class*="longest-kill"],
+[class*="headshot"],
+[class*="avg-kills"] {
+  color: #ffffff !important;
+  background-color: #1e1e1e !important;
+  border: 1px solid #333333 !important;
+}
+
+/* Stats value emphasis */
+[class*="total-players"] span,
+[class*="total-teams"] span,
+[class*="total-kills"] span,
+[class*="longest-kill"] span,
+[class*="headshot"] span,
+[class*="avg-kills"] span {
+  color: #ffffff !important;
+  font-weight: bold !important;
+}
+
+/* Match details right sidebar specific fix */
+.match-detail-page > div[style*="background-color: white"],
+.match-details-page > div[style*="background-color: white"],
+.match-detail-page > div > div[style*="background-color: white"],
+.match-details-page > div > div[style*="background-color: white"],
+.match-details-container > div,
+.match-summary-sidebar,
+.match-details-sidebar {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+}
+
+/* Match time indicator */
+div[class*="hours-ago"],
+span[class*="hours-ago"],
+div:contains("hours ago") {
+  color: #e0e0e0 !important;
+  background-color: #252525 !important;
+  border: 1px solid #444444 !important;
+}
+
+/* Force dark background for specific DOM structures */
+body div[id*="root"] div > div > div > div:not([class*="btn"]):not([class*="button"]) {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+}
+
+/* Absolutely force white backgrounds to be dark */
+[style*="background-color: white"],
+[style*="background-color: #fff"],
+[style*="background-color: #ffffff"],
+[style*="background: white"],
+[style*="background: #fff"],
+[style*="background: #ffffff"] {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+}
+
+/* Time elements styling */
+[class*="hours-ago"],
+[id*="hours-ago"],
+[class*="time"],
+[class*="date"] {
+  color: #e0e0e0 !important;
+  background-color: #252525 !important;
+  border: 1px solid #444444 !important;
+}
+
+/* Target every div inside search results */
+.search-results *:not(button):not(.view-details-btn):not(.btn):not(.badge):not(a),
+.match-details *:not(button):not(.view-details-btn):not(.btn):not(.badge):not(a),
+.match-detail-page *:not(button):not(.view-details-btn):not(.btn):not(.badge):not(a) {
+  background-color: #1e1e1e !important;
+}
+
+/* Force inline-styled elements */
+[style] {
+  color: #ffffff !important;
+}
+
+/* Additional fixes for search results and match details */
+
+/* Target the match info blocks from the screenshots */
+.match-details div[class*="map"],
+.match-details div[class*="mode"],
+.match-info span,
+.match-info div[id*="mode"],
+.match-info div[id*="map"],
+.match-info div[id*="players"] {
+  background-color: #252525 !important;
+  color: #ffffff !important;
+  border: 1px solid #444444 !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  margin: 4px !important;
+}
+
+/* Override any white background in match info */
+.match-info,
+.match-info > div,
+div.match-info span,
+div.match-info div {
+  background-color: transparent !important;
+  color: #ffffff !important;
+}
+
+/* Target search result cards from screenshots */
+div.search-results > div > div:first-child,
+div.search-results > div:nth-child(n) > div,
+div.results-container > div > div {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+  border-radius: 4px !important;
+}
+
+/* Ensure all match info rows have proper styling */
+.match-meta div,
+.match-meta span,
+.match-details span[class*="map"],
+.match-details span[class*="mode"],
+.match-details span[class*="player"] {
+  background-color: #252525 !important;
+  color: #ffffff !important;
+  border-radius: 4px !important;
+  border: 1px solid #444444 !important;
+  padding: 8px 12px !important;
+}
+
+/* Ensure white text for strong elements inside match info */
+.match-info strong,
+.match-meta strong,
+.match-details strong,
+.match-info-row strong,
+.match-stats-row strong {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+/* Make search results text visible */
+.search-results span,
+.search-results div,
+.search-results p {
+  color: #ffffff !important;
+}
+
+/* Specific elements from screenshots */
+div[id*="Map:"],
+div[id*="Mode:"],
+div[id*="Players:"],
+div[id*="Platform:"],
+span[id*="Map:"],
+span[id*="Mode:"],
+span[id*="Players:"],
+span[id*="Platform:"] {
+  background-color: #252525 !important;
+  color: #ffffff !important;
+  border: 1px solid #444444 !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+}
+
+/* Very specific selectors for the search results cards in screenshot 1 */
+.search-results > div > div,
+.search-results > div:nth-child(1) > div,
+.search-results > div:nth-child(2) > div,
+.search-results > div:nth-child(3) > div,
+.search-results > div:nth-child(4) > div,
+.search-results > div:nth-child(5) > div {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+}
+
+/* Very specific selectors for the match details page in screenshot 2 */
+.match-detail-page > div:first-child,
+.match-details > div:first-child,
+.match-header,
+.match-header > div,
+.match-meta,
+.match-meta > div {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+}
+
+/* Target matching hours ago and ID elements from the first screenshot */
+div[id*="hours-ago"],
+div[id*="ID:"],
+div[class*="hours-ago"],
+div[class*="ID:"] {
+  background-color: #252525 !important;
+  color: #e0e0e0 !important;
+  border: 1px solid #444444 !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+}
+
+/* Override any Bootstrap or other framework's text colors */
+.text-dark, .text-black, .text-body {
+  color: #ffffff !important;
+}
+
+/* Extra specific selectors for the problem areas in screenshot 1 */
+body div.search-results > div {
+  background-color: #1e1e1e !important;
+}
+
+/* Extra specific selectors for the problem areas in screenshot 2 */
+body div.match-details > div {
+  background-color: #1e1e1e !important;
+}
+
+/* Dashboard team cards fixes */
+.dashboard .teams-section .team-card,
+.dashboard .your-teams .team-card,
+div[class*="teams"] .team-card,
+.your-teams > div,
+.team-list > div,
+/* Direct target for team list items */
+div:has(> div > div > [class*="tag"]),
+div:has(> span[class*="tag"]),
+li:has(> span[class*="tag"]),
+/* Target by structure */
+.your-teams a,
+.your-teams div a,
+.teams-section div,
+.teams-section > div > div,
+/* Very specific targeting for team list items */
+div[class*="teams"] > div > div,
+div:has(> span:first-child:not(:last-child)) {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border: 1px solid #333333 !important;
+  border-radius: 4px !important;
+  margin-bottom: 0.5rem !important;
+  padding: 0.5rem !important;
+}
+
+/* Team tag styling */
+.team-tag,
+[class*="tag"],
+.team-card [class*="tag"],
+span[class*="tag"],
+div > span:first-child:not(:last-child),
+/* Target specific dashboard team tags */
+[id^="FESF"],
+[id^="ICE"],
+[id^="FRES"],
+[id^="ULFR"],
+[id^="NLGB"],
+[id^="NLGR"],
+[id^="OGTS"],
+[id*="354"],
+/* Force any span inside a team item to be styled */
+div.team-item span,
+.your-teams div span,
+.teams-section div span {
+  background-color: #252525 !important;
+  color: #ffffff !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  border: 1px solid #444444 !important;
+  display: inline-block !important;
+  margin: 2px !important;
+}
+
+/* Form fields in create team page */
+.create-team-form input,
+.create-team-form textarea,
+.create-team-form select,
+input[type="text"],
+input[type="url"],
+input[type="email"],
+input[type="password"],
+textarea {
+  background-color: #2a2a2a !important;
+  color: #ffffff !important;
+  border: 1px solid #444444 !important;
+  padding: 0.75rem !important;
+  border-radius: 4px !important;
+}
+
+/* Help text for form fields */
+.form-helper-text,
+.helper-text,
+.field-description,
+.form-text {
+  color: #b0b0b0 !important;
+  font-size: 0.875rem !important;
+  margin-top: 0.25rem !important;
+}
+
+/* Focus state for form fields */
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #0075ff !important;
+  box-shadow: 0 0 0 2px rgba(0, 117, 255, 0.25) !important;
+  outline: none !important;
+}
+
+/* Optional URL text color */
+.optional-text,
+[class*="optional"] {
+  color: #75b7ff !important;
+}
+
+/* Dashboard team list styling */
+.your-teams,
+.team-list {
+  background-color: #1e1e1e !important;
+  border: 1px solid #333333 !important;
+  border-radius: 4px !important;
+  padding: 0.5rem !important;
+}

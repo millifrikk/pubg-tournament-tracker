@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db/connection');
 const pubgApiService = require('../services/pubgApiService');
+const tournamentsController = require('../controllers/tournamentsController');
 const { authenticateJWT, requireAdmin } = require('../middleware/auth');
 
 // Simple in-memory rate limiter for API endpoints
@@ -72,56 +73,6 @@ function rateLimiterMiddleware(req, res, next) {
   next();
 }
 
-/**
- * @route GET /api/tournaments
- * @desc Get all tournaments
- * @access Public
- */
-router.get('/', rateLimiterMiddleware, async (req, res) => {
-  try {
-    const { limit = 20, offset = 0, active, public } = req.query;
-    
-    // Build query
-    let query = db('tournaments')
-      .select('id', 'name', 'description', 'start_date', 'end_date', 'format', 'scoring_system', 'is_active', 'is_public', 'created_at')
-      .orderBy('created_at', 'desc')
-      .limit(parseInt(limit, 10))
-      .offset(parseInt(offset, 10));
-    
-    // Add filters if provided
-    if (active !== undefined) {
-      query = query.where('is_active', active === 'true');
-    }
-    
-    if (public !== undefined) {
-      query = query.where('is_public', public === 'true');
-    }
-    
-    const tournaments = await query;
-    
-    res.json({
-      data: tournaments,
-      meta: {
-        limit: parseInt(limit, 10),
-        offset: parseInt(offset, 10),
-        count: tournaments.length
-      }
-    });
-  } catch (error) {
-    console.error('Error getting tournaments:', error);
-    res.status(500).json({ 
-      error: 'Error retrieving tournaments',
-      details: error.message
-    });
-  }
-});
-
-/**
- * @route GET /api/tournaments/:id
- * @desc Get tournament by ID
- * @access Public
- */
-
 // Simple in-memory cache for tournament data
 const tournamentCache = {
   data: {},
@@ -129,7 +80,15 @@ const tournamentCache = {
   TTL: 30000 // 30 seconds TTL
 };
 
-router.get('/:id', rateLimiterMiddleware, async (req, res) => {
+/**
+ * Tournament Routes
+ */
+
+// Get all tournaments
+router.get('/', rateLimiterMiddleware, tournamentsController.getAllTournaments);
+
+// Get tournament by ID
+router.get('/:id', rateLimiterMiddleware, (req, res) => {
   // Add cache control headers
   res.set('Cache-Control', 'public, max-age=30');
   
@@ -155,205 +114,15 @@ router.get('/:id', rateLimiterMiddleware, async (req, res) => {
   }
   
   // If no cache hit, proceed with database query
-  try {
-    const { id } = req.params;
-    
-    // Get tournament
-    // Log the tournament ID we're looking for
-    console.log(`Looking for tournament with ID: ${id}`);
-    
-    const tournament = await db('tournaments')
-      .where({ id })
-      .first();
-    
-    if (!tournament) {
-      console.warn(`Tournament not found with ID: ${id}`);
-      return res.status(404).json({ 
-        error: 'Tournament not found',
-        data: { message: 'The requested tournament could not be found' }
-      });
-    }
-    
-    // Get teams for this tournament
-    const teams = await db('tournament_teams')
-      .select('tournament_teams.seed_number', 'tournament_teams.is_active', 'teams.id', 'teams.name', 'teams.tag', 'teams.logo_url')
-      .join('teams', 'tournament_teams.team_id', 'teams.id')
-      .where({ 'tournament_teams.tournament_id': id });
-    
-    // Get matches for this tournament
-    const matches = await db('custom_matches')
-      .where({ tournament_id: id })
-      .orderBy('match_number', 'asc');
-    
-    // Get standings if they exist
-    const standings = await db('tournament_standings')
-      .where({ tournament_id: id })
-      .orderBy('calculated_at', 'desc')
-      .first();
-    
-    // Prepare response data
-    const responseData = {
-      data: {
-        ...tournament,
-        teams,
-        matches,
-        standings: standings ? standings.standings : null
-      }
-    };
-    
-    // Update cache if we have valid data
-    if (tournament && tournament.id) {
-      console.log(`Caching tournament data for ID ${id}: ${tournament.name}`);
-      tournamentCache.data[id] = responseData;
-      tournamentCache.timestamp[id] = Date.now();
-    } else {
-      console.warn(`Not caching invalid tournament data for ID ${id}`);
-    }
-    
-    // Send response
-    res.json(responseData);
-  } catch (error) {
-    console.error(`Error getting tournament with ID ${req.params.id}:`, error);
-    res.status(500).json({ 
-      error: 'Error retrieving tournament',
-      details: error.message
-    });
-  }
+  tournamentsController.getTournamentById(req, res);
+  
+  // Note: caching of response is handled in the controller
 });
 
-/**
- * @route POST /api/tournaments
- * @desc Create a new tournament
- * @access Private
- */
-router.post('/', authenticateJWT, async (req, res) => {
-  try {
-    const {
-      name,
-      description,
-      startDate,
-      endDate,
-      format,
-      scoringSystem,
-      customScoringTable,
-      isActive = true,
-      isPublic = true
-    } = req.body;
-    
-    // Get organizer ID from authenticated user
-    const organizerId = req.user.id;
-    console.log('Creating tournament with organizer ID:', organizerId);
-    
-    // Validate that we have a valid UUID
-    if (!organizerId || organizerId === '00000000-0000-0000-0000-000000000000') {
-      console.error('Invalid organizer ID:', organizerId);
-      return res.status(400).json({ 
-        error: 'Valid user ID required to create tournament',
-        details: 'Authentication issue: Invalid or missing user ID'
-      });
-    }
-    
-    // Validate required fields
-    const missingFields = [];
-    if (!name) missingFields.push('name');
-    if (!startDate) missingFields.push('startDate');
-    if (!endDate) missingFields.push('endDate');
-    if (!format) missingFields.push('format');
-    if (!scoringSystem) missingFields.push('scoringSystem');
-    
-    if (missingFields.length > 0) {
-      return res.status(400).json({ 
-        error: `Missing required fields: ${missingFields.join(', ')}`,
-        details: 'Please provide all required fields to create a tournament'
-      });
-    }
-    
-    // Create tournament
-    const tournamentData = {
-      name,
-      description,
-      organizer_id: organizerId,
-      start_date: new Date(startDate),
-      end_date: new Date(endDate),
-      format,
-      scoring_system: scoringSystem,
-      custom_scoring_table: customScoringTable ? JSON.stringify(customScoringTable) : null,
-      is_active: isActive,
-      is_public: isPublic
-    };
-      
-    try {
-      console.log('Creating tournament with data:', tournamentData);
-      
-      const [tournament] = await db('tournaments')
-        .insert(tournamentData)
-        .returning('*');
-      
-      res.status(201).json({
-        message: 'Tournament created successfully',
-        data: tournament
-      });
-    } catch (dbError) {
-      console.error('Database error creating tournament:', dbError);
-      
-      // More detailed error handling for database errors
-      if (dbError.code === '23503') {
-        return res.status(400).json({
-          error: 'Foreign key constraint violation',
-          details: `The user ID ${organizerId} does not exist in the database`,
-          code: dbError.code
-        });
-      }
-      
-      if (dbError.code === '23505') {
-        return res.status(409).json({
-          error: 'Unique constraint violation',
-          details: 'A tournament with this name already exists',
-          code: dbError.code
-        });
-      }
-      
-      return res.status(500).json({
-        error: 'Error creating tournament in database',
-        details: dbError.message,
-        code: dbError.code || 'UNKNOWN'
-      });
-    }
-  } catch (error) {
-    console.error('Error creating tournament:', error);
-    
-    // More specific error messages
-    if (error.code === '23503') {
-      return res.status(400).json({ 
-        error: 'Database constraint error. Please check that all referenced IDs are valid.' 
-      });
-    }
-    
-    if (error.code === '23505') {
-      return res.status(409).json({ 
-        error: 'A tournament with this name already exists' 
-      });
-    }
-    
-    // Check for date format issues
-    if (error.message && error.message.includes('date')) {
-      return res.status(400).json({ 
-        error: 'Invalid date format. Please use a valid date format.' 
-      });
-    }
-    
-    res.status(500).json({ 
-      error: 'Error creating tournament',
-      details: error.message
-    });
-  }
-});
+// Create new tournament
+router.post('/', authenticateJWT, tournamentsController.createTournament);
 
-/**
- * @route PUT /api/tournaments/:id
- * @desc Update a tournament
- * @access Private
- */
+// Update tournament
 router.put('/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -401,6 +170,12 @@ router.put('/:id', authenticateJWT, async (req, res) => {
       .update(updateData)
       .returning('*');
     
+    // Clear cache for this tournament
+    if (tournamentCache.data[id]) {
+      delete tournamentCache.data[id];
+      delete tournamentCache.timestamp[id];
+    }
+    
     res.json({
       message: 'Tournament updated successfully',
       data: updatedTournament
@@ -414,11 +189,7 @@ router.put('/:id', authenticateJWT, async (req, res) => {
   }
 });
 
-/**
- * @route DELETE /api/tournaments/:id
- * @desc Delete a tournament
- * @access Private
- */
+// Delete tournament
 router.delete('/:id', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -442,6 +213,12 @@ router.delete('/:id', authenticateJWT, async (req, res) => {
       .where({ id })
       .delete();
     
+    // Clear cache for this tournament
+    if (tournamentCache.data[id]) {
+      delete tournamentCache.data[id];
+      delete tournamentCache.timestamp[id];
+    }
+    
     res.json({
       message: 'Tournament deleted successfully'
     });
@@ -454,27 +231,22 @@ router.delete('/:id', authenticateJWT, async (req, res) => {
   }
 });
 
-/**
- * @route GET /api/tournaments/:id/teams
- * @desc Get teams for a tournament
- * @access Public
- */
-router.get('/:id/teams', async (req, res) => {
+// Get teams for a tournament
+router.get('/:id/teams', rateLimiterMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Check if tournament exists
-    const tournament = await db('tournaments')
-      .where({ id })
-      .first();
-    
-    if (!tournament) {
-      return res.status(404).json({ error: 'Tournament not found' });
-    }
-    
     // Get teams for this tournament
     const teams = await db('tournament_teams')
-      .select('tournament_teams.seed_number', 'tournament_teams.is_active', 'teams.id', 'teams.name', 'teams.tag', 'teams.logo_url')
+      .select(
+        'tournament_teams.seed_number', 
+        'tournament_teams.is_active', 
+        'tournament_teams.points',
+        'teams.id', 
+        'teams.name', 
+        'teams.tag', 
+        'teams.logo_url'
+      )
       .join('teams', 'tournament_teams.team_id', 'teams.id')
       .where({ 'tournament_teams.tournament_id': id });
     
@@ -487,234 +259,27 @@ router.get('/:id/teams', async (req, res) => {
     });
   } catch (error) {
     console.error(`Error getting teams for tournament ${req.params.id}:`, error);
-    res.status(500).json({ 
-      error: 'Error retrieving tournament teams',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Failed to get tournament teams' });
   }
 });
 
-/**
- * @route POST /api/tournaments/:id/teams
- * @desc Add team to a tournament
- * @access Private
- */
-router.post('/:id/teams', authenticateJWT, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { teamId } = req.body;
-    
-    console.log(`Adding team ${teamId} to tournament ${id}`);
-    
-    if (!teamId) {
-      return res.status(400).json({ error: 'Team ID is required' });
-    }
-    
-    // Check if tournament exists
-    const tournament = await db('tournaments')
-      .where({ id })
-      .first();
-    
-    if (!tournament) {
-      console.log(`Tournament not found with ID: ${id}`);
-      return res.status(404).json({ error: 'Tournament not found' });
-    }
-    
-    // Check if user is the organizer or an admin
-    const userId = req.user.id;
-    const userRole = req.user.role;
-    console.log(`Authenticated user ID: ${userId}, role: ${userRole}`);
-    console.log(`Tournament organizer ID: ${tournament.organizer_id}`);
-    
-    if (userRole !== 'admin' && tournament.organizer_id !== userId) {
-      console.log('Authorization failed: User is not the organizer or an admin');
-      return res.status(403).json({ 
-        error: 'Not authorized to add teams to this tournament',
-        details: 'Only the tournament organizer or an admin can add teams'
-      });
-    }
-    
-    // Check if team exists
-    const team = await db('teams')
-      .where({ id: teamId })
-      .first();
-    
-    if (!team) {
-      console.log(`Team not found with ID: ${teamId}`);
-      return res.status(404).json({ error: 'Team not found' });
-    }
-    
-    // Check if team is already in this tournament
-    const existingTeam = await db('tournament_teams')
-      .where({ 
-        tournament_id: id,
-        team_id: teamId
-      })
-      .first();
-    
-    if (existingTeam) {
-      console.log(`Team ${teamId} is already in tournament ${id}`);
-      return res.status(409).json({ 
-        error: 'Team is already in this tournament',
-        details: `Team '${team.name}' is already registered in this tournament`
-      });
-    }
-    
-    // Get next seed number
-    const lastTeam = await db('tournament_teams')
-      .where({ tournament_id: id })
-      .orderBy('seed_number', 'desc')
-      .first();
-    
-    const seedNumber = lastTeam ? lastTeam.seed_number + 1 : 1;
-    console.log(`Assigning seed number ${seedNumber} to team ${teamId}`);
-    
-    // Add team to tournament
-    try {
-      const [addedTeam] = await db('tournament_teams')
-        .insert({
-          tournament_id: id,
-          team_id: teamId,
-          seed_number: seedNumber,
-          is_active: true
-        })
-        .returning('*');
-      
-      console.log(`Successfully added team ${teamId} to tournament ${id}:`, addedTeam);
-      
-      // Get full team details
-      const teamWithDetails = await db('tournament_teams')
-        .select('tournament_teams.seed_number', 'tournament_teams.is_active', 'teams.id', 'teams.name', 'teams.tag', 'teams.logo_url')
-        .join('teams', 'tournament_teams.team_id', 'teams.id')
-        .where({ 
-          'tournament_teams.tournament_id': id,
-          'tournament_teams.team_id': teamId
-        })
-        .first();
-      
-      // Emit team added event via WebSocket
-      if (req.io) {
-        req.io.emitTournamentUpdate(id, {
-          type: 'TEAM_ADDED',
-          tournamentId: id,
-          teamId: teamId,
-          teamName: team.name,
-          timestamp: new Date()
-        });
-      }
-      
-      // Clear tournament cache to ensure fresh data
-      if (tournamentCache.data[id]) {
-        delete tournamentCache.data[id];
-        delete tournamentCache.timestamp[id];
-        console.log(`Cleared cache for tournament ${id}`);
-      }
-      
-      res.status(201).json({
-        message: 'Team added to tournament successfully',
-        data: teamWithDetails
-      });
-    } catch (dbError) {
-      // Specific database error handling
-      console.error('Database error adding team to tournament:', dbError);
-      
-      if (dbError.code === '23503') {
-        return res.status(400).json({
-          error: 'Foreign key constraint violation',
-          details: 'The team or tournament ID does not exist in the database',
-          code: dbError.code
-        });
-      }
-      
-      if (dbError.code === '23505') {
-        return res.status(409).json({
-          error: 'Unique constraint violation',
-          details: 'This team is already in the tournament',
-          code: dbError.code
-        });
-      }
-      
-      throw dbError; // Re-throw for general error handling
-    }
-  } catch (error) {
-    console.error(`Error adding team to tournament ${req.params.id}:`, error);
-    res.status(500).json({ 
-      error: 'Error adding team to tournament',
-      details: error.message
-    });
-  }
-});
+// NEW: Get teams with player counts for a tournament
+router.get('/:id/teams/with-players', rateLimiterMiddleware, tournamentsController.getTournamentTeamsWithPlayers);
+
+// Get players for a tournament
+router.get('/:id/players', rateLimiterMiddleware, tournamentsController.getTournamentPlayers);
+
+// Add team to tournament
+router.post('/:id/teams', authenticateJWT, tournamentsController.addTeamToTournament);
+
+// Remove team from tournament
+router.delete('/:id/teams/:teamId', authenticateJWT, tournamentsController.removeTeamFromTournament);
 
 /**
- * @route DELETE /api/tournaments/:id/teams/:teamId
- * @desc Remove team from a tournament
- * @access Private
+ * Match Management
  */
-router.delete('/:id/teams/:teamId', authenticateJWT, async (req, res) => {
-  try {
-    const { id, teamId } = req.params;
-    
-    // Check if tournament exists
-    const tournament = await db('tournaments')
-      .where({ id })
-      .first();
-    
-    if (!tournament) {
-      return res.status(404).json({ error: 'Tournament not found' });
-    }
-    
-    // Check if user is the organizer or an admin
-    if (req.user.role !== 'admin' && tournament.organizer_id !== req.user.id) {
-      return res.status(403).json({ error: 'Not authorized to remove teams from this tournament' });
-    }
-    
-    // Check if team is in this tournament
-    const teamInTournament = await db('tournament_teams')
-      .where({ 
-        tournament_id: id,
-        team_id: teamId
-      })
-      .first();
-    
-    if (!teamInTournament) {
-      return res.status(404).json({ error: 'Team not found in this tournament' });
-    }
-    
-    // Remove team from tournament
-    await db('tournament_teams')
-      .where({ 
-        tournament_id: id,
-        team_id: teamId
-      })
-      .delete();
-    
-    // Emit team removed event via WebSocket
-    if (req.io) {
-      req.io.emitTournamentUpdate(id, {
-        type: 'TEAM_REMOVED',
-        tournamentId: id,
-        teamId: teamId,
-        timestamp: new Date()
-      });
-    }
-    
-    // Clear tournament cache to ensure fresh data
-    if (tournamentCache.data[id]) {
-      delete tournamentCache.data[id];
-      delete tournamentCache.timestamp[id];
-    }
-    
-    res.json({
-      message: 'Team removed from tournament successfully'
-    });
-  } catch (error) {
-    console.error(`Error removing team from tournament ${req.params.id}:`, error);
-    res.status(500).json({ 
-      error: 'Error removing team from tournament',
-      details: error.message
-    });
-  }
-});
+
+// Get matches for a tournament
 router.get('/:id/matches', async (req, res) => {
   try {
     const { id } = req.params;
@@ -770,11 +335,7 @@ router.get('/:id/matches', async (req, res) => {
   }
 });
 
-/**
- * @route POST /api/tournaments/:id/matches
- * @desc Add matches to a tournament
- * @access Private
- */
+// Add matches to tournament
 router.post('/:id/matches', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -849,6 +410,12 @@ router.post('/:id/matches', authenticateJWT, async (req, res) => {
       });
     }
     
+    // Clear cache for this tournament
+    if (tournamentCache.data[id]) {
+      delete tournamentCache.data[id];
+      delete tournamentCache.timestamp[id];
+    }
+    
     res.status(201).json({
       message: `${newMatchIds.length} matches added to tournament (${existingMatchIds.length} already existed)`,
       data: {
@@ -866,11 +433,7 @@ router.post('/:id/matches', authenticateJWT, async (req, res) => {
   }
 });
 
-/**
- * @route DELETE /api/tournaments/:id/matches/:matchId
- * @desc Remove a match from a tournament
- * @access Private
- */
+// Remove match from tournament
 router.delete('/:id/matches/:matchId', authenticateJWT, async (req, res) => {
   try {
     const { id, matchId } = req.params;
@@ -908,6 +471,12 @@ router.delete('/:id/matches/:matchId', authenticateJWT, async (req, res) => {
       })
       .delete();
     
+    // Clear cache for this tournament
+    if (tournamentCache.data[id]) {
+      delete tournamentCache.data[id];
+      delete tournamentCache.timestamp[id];
+    }
+    
     res.json({
       message: 'Match removed from tournament successfully'
     });
@@ -921,15 +490,478 @@ router.delete('/:id/matches/:matchId', authenticateJWT, async (req, res) => {
 });
 
 /**
- * @route POST /api/tournaments/:id/calculate-standings
- * @desc Calculate tournament standings
+ * Search for custom matches by team players
+ */
+router.post('/:id/matches/search', authenticateJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { platform = 'steam', timeRange = '24h' } = req.body;
+    
+    // Check if tournament exists
+    const tournament = await db('tournaments')
+      .where({ id })
+      .first();
+    
+    if (!tournament) {
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+    
+    // Get players from all teams in this tournament
+    const players = await db('players')
+      .select('players.pubg_name')
+      .join('teams', 'players.team_id', 'teams.id')
+      .join('tournament_teams', 'teams.id', 'tournament_teams.team_id')
+      .where('tournament_teams.tournament_id', id)
+      .whereNotNull('players.pubg_name');
+    
+    if (players.length === 0) {
+      return res.json({
+        data: [],
+        meta: {
+          count: 0,
+          message: 'No players found in tournament teams'
+        }
+      });
+    }
+    
+    // Extract player names
+    const playerNames = players.map(player => player.pubg_name);
+    
+    // Search for matches played by these players
+    const matches = await pubgApiService.searchCustomMatchesByTeamPlayers({
+      playerNames,
+      platform,
+      timeRange
+    });
+    
+    res.json({
+      data: matches,
+      meta: {
+        count: matches.length,
+        playerCount: playerNames.length,
+        tournamentId: id
+      }
+    });
+  } catch (error) {
+    console.error(`Error searching matches for tournament ${req.params.id}:`, error);
+    res.status(500).json({ 
+      error: 'Error searching tournament matches',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/tournaments/:id/matches/:matchId/process
+ * @desc Process match results and calculate points
  * @access Private
  */
+router.post('/:id/matches/:matchId/process', authenticateJWT, async (req, res) => {
+  try {
+    const { id: tournamentId, matchId } = req.params;
+    const { platform = 'steam' } = req.body;
+    
+    // Check if user is authorized to process match results
+    const tournament = await db('tournaments')
+      .where({ id: tournamentId })
+      .first();
+    
+    if (!tournament) {
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+    
+    if (req.user.role !== 'admin' && tournament.organizer_id !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized to process match results for this tournament' });
+    }
+    
+    // Check if match exists in this tournament
+    const match = await db('custom_matches')
+      .where({ 
+        tournament_id: tournamentId,
+        match_id: matchId
+      })
+      .first();
+    
+    if (!match) {
+      return res.status(404).json({ error: 'Match not found in this tournament' });
+    }
+    
+    // Get match data
+    const matchData = await pubgApiService.getMatch(matchId, platform);
+    
+    // Get tournament teams
+    const tournamentTeams = await db('tournament_teams')
+      .select('tournament_teams.team_id', 'teams.name as team_name')
+      .join('teams', 'tournament_teams.team_id', 'teams.id')
+      .where({ tournament_id: tournamentId });
+    
+    // Get player-team mapping for all teams in the tournament
+    const teamPlayers = await db('players')
+      .select('players.pubg_id', 'players.team_id')
+      .join('teams', 'players.team_id', 'teams.id')
+      .join('tournament_teams', 'teams.id', 'tournament_teams.team_id')
+      .where('tournament_teams.tournament_id', tournamentId);
+    
+    // Create player ID to team ID mapping
+    const playerToTeam = {};
+    teamPlayers.forEach(player => {
+      playerToTeam[player.pubg_id] = player.team_id;
+    });
+    
+    // Extract rosters (teams) from match data
+    const included = matchData.included || [];
+    const rosters = included.filter(item => item.type === 'roster');
+    
+    // Process each roster
+    const results = [];
+    
+    // Scoring configuration
+    const scoringSystem = tournament.scoring_system || 'super';
+    let placementPoints;
+    let killMultiplier;
+    
+    if (scoringSystem === 'super') {
+      // PUBG SUPER scoring system
+      placementPoints = [10, 6, 5, 4, 3, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+      killMultiplier = 1;
+    } else if (scoringSystem === 'standard') {
+      // Standard scoring
+      placementPoints = [15, 12, 10, 8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+      killMultiplier = 1;
+    } else if (scoringSystem === 'custom' && tournament.custom_scoring_table) {
+      // Custom scoring
+      const customScoring = JSON.parse(tournament.custom_scoring_table);
+      placementPoints = customScoring.placements || [10, 6, 5, 4, 3, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+      killMultiplier = customScoring.killPoints || 1;
+    } else {
+      // Default scoring
+      placementPoints = [10, 6, 5, 4, 3, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+      killMultiplier = 1;
+    }
+    
+    rosters.forEach(roster => {
+      // Get roster stats
+      const rank = roster.attributes.stats.rank;
+      
+      // Get team players
+      const participantIds = roster.relationships.participants.data.map(p => p.id);
+      const participants = included.filter(item => 
+        item.type === 'participant' && participantIds.includes(item.id)
+      );
+      
+      // Get player IDs
+      const playerAccountIds = participants.map(p => p.attributes.stats.playerId);
+      
+      // Try to identify team by matching players with tournament teams
+      const matchedTeamId = identifyTeamByPlayers(playerAccountIds, playerToTeam);
+      if (!matchedTeamId) {
+        return; // Skip if team not identified
+      }
+      
+      // Calculate placement points
+      const rankIndex = rank - 1;  // zero-based index
+      const placementPointsEarned = rankIndex < placementPoints.length ? placementPoints[rankIndex] : 0;
+      
+      // Sum kills for this team
+      const kills = participants.reduce((sum, participant) => {
+        return sum + (participant.attributes.stats.kills || 0);
+      }, 0);
+      
+      // Calculate kill points
+      const killPointsEarned = kills * killMultiplier;
+      
+      // Total points for this match
+      const totalPoints = placementPointsEarned + killPointsEarned;
+      
+      // Add to results
+      results.push({
+        team_id: matchedTeamId,
+        placement: rank,
+        kills,
+        placement_points: placementPointsEarned,
+        kill_points: killPointsEarned,
+        total_points: totalPoints
+      });
+    });
+    
+    // Store match data
+    await db('custom_matches')
+      .where({ 
+        match_id: matchId,
+        tournament_id: tournamentId
+      })
+      .update({
+        match_data: JSON.stringify(matchData),
+        processed: true,
+        processed_at: new Date()
+      });
+    
+    // Store results in database
+    for (const result of results) {
+      await db('match_results').insert({
+        tournament_id: tournamentId,
+        match_id: matchId,
+        team_id: result.team_id,
+        placement: result.placement,
+        kills: result.kills,
+        placement_points: result.placement_points,
+        kill_points: result.kill_points,
+        total_points: result.total_points,
+        processed_at: new Date()
+      });
+      
+      // Update team points in tournament_teams
+      await db('tournament_teams')
+        .where({
+          tournament_id: tournamentId,
+          team_id: result.team_id
+        })
+        .increment('points', result.total_points);
+    }
+    
+    // Emit socket event for real-time updates
+    if (req.io) {
+      req.io.emitTournamentUpdate(tournamentId, {
+        type: 'MATCH_RESULTS_PROCESSED',
+        tournamentId,
+        matchId,
+        timestamp: new Date()
+      });
+      
+      req.io.emitStandingsUpdate(tournamentId, {
+        tournamentId,
+        updatedAt: new Date()
+      });
+    }
+    
+    // Clear cache for this tournament
+    if (tournamentCache.data[tournamentId]) {
+      delete tournamentCache.data[tournamentId];
+      delete tournamentCache.timestamp[tournamentId];
+    }
+    
+    res.json({
+      message: 'Match results processed successfully',
+      data: {
+        match_id: matchId,
+        tournament_id: tournamentId,
+        results,
+        teams_matched: results.length,
+        teams_total: tournamentTeams.length
+      }
+    });
+  } catch (error) {
+    console.error(`Error processing match results for tournament ${req.params.id}, match ${req.params.matchId}:`, error);
+    res.status(500).json({ 
+      error: 'Error processing match results',
+      details: error.message
+    });
+  }
+});
+
 /**
- * @route GET /api/tournaments/:id/leaderboard
- * @desc Get tournament leaderboard
- * @access Public
+ * @route POST /api/tournaments/:id/matches/:matchId/extract-players
+ * @desc Extract player details from a match and update database
+ * @access Private
  */
+router.post('/:id/matches/:matchId/extract-players', authenticateJWT, async (req, res) => {
+  try {
+    const { id: tournamentId, matchId } = req.params;
+    const { platform = 'steam' } = req.body;
+    
+    // Check if user is authorized
+    const tournament = await db('tournaments')
+      .where({ id: tournamentId })
+      .first();
+    
+    if (!tournament) {
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+    
+    if (req.user.role !== 'admin' && tournament.organizer_id !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized to extract players for this tournament' });
+    }
+    
+    // Get match data
+    let matchData;
+    const matchRecord = await db('custom_matches')
+      .where({ 
+        match_id: matchId,
+        tournament_id: tournamentId
+      })
+      .first();
+    
+    if (!matchRecord) {
+      return res.status(404).json({ error: 'Match not found in this tournament' });
+    }
+    
+    // If match data is not stored yet, fetch it
+    if (matchRecord.match_data) {
+      try {
+        matchData = JSON.parse(matchRecord.match_data);
+      } catch (err) {
+        console.error('Error parsing stored match data:', err);
+        matchData = await pubgApiService.getMatch(matchId, platform);
+      }
+    } else {
+      matchData = await pubgApiService.getMatch(matchId, platform);
+      
+      // Store match data
+      await db('custom_matches')
+        .where({ 
+          match_id: matchId,
+          tournament_id: tournamentId
+        })
+        .update({
+          match_data: JSON.stringify(matchData)
+        });
+    }
+    
+    // Get tournament teams
+    const tournamentTeams = await db('tournament_teams')
+      .select('team_id')
+      .where({ tournament_id: tournamentId });
+    
+    const teamIds = tournamentTeams.map(team => team.team_id);
+    
+    // Extract participant data from match
+    const included = matchData.included || [];
+    const participants = included.filter(item => item.type === 'participant');
+    
+    // Get existing players
+    const existingPlayers = await db('players')
+      .select('pubg_id')
+      .whereIn('team_id', teamIds);
+    
+    const existingIds = new Set(existingPlayers.map(p => p.pubg_id));
+    
+    // Process each participant
+    const newPlayers = [];
+    const updatedPlayers = [];
+    
+    for (const participant of participants) {
+      const stats = participant.attributes.stats;
+      
+      if (!stats || !stats.playerId) continue;
+      
+      const playerData = {
+        pubg_id: stats.playerId,
+        pubg_name: stats.name,
+        platform: matchData.data.attributes.shardId || platform,
+        stats: {
+          kills: stats.kills,
+          DBNOs: stats.DBNOs,
+          damage: stats.damageDealt,
+          headshots: stats.headshotKills,
+          longestKill: stats.longestKill,
+          rideDistance: stats.rideDistance,
+          walkDistance: stats.walkDistance,
+          swimDistance: stats.swimDistance
+        }
+      };
+      
+      if (existingIds.has(stats.playerId)) {
+        // Update existing player stats
+        await db('players')
+          .where({ pubg_id: stats.playerId })
+          .update({
+            pubg_name: stats.name,
+            stats: JSON.stringify({
+              ...playerData.stats,
+              lastUpdated: new Date()
+            })
+          });
+        
+        updatedPlayers.push(playerData);
+      } else {
+        // Add to new players list (will be returned but not automatically added to teams)
+        newPlayers.push(playerData);
+      }
+    }
+    
+    res.json({
+      message: 'Players extracted successfully',
+      data: {
+        new: newPlayers,
+        updated: updatedPlayers
+      }
+    });
+  } catch (error) {
+    console.error(`Error extracting players for tournament ${req.params.id}, match ${req.params.matchId}:`, error);
+    res.status(500).json({ 
+      error: 'Error extracting players',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Get match results
+ */
+router.get('/:id/matches/:matchId/results', async (req, res) => {
+  try {
+    const { id: tournamentId, matchId } = req.params;
+    
+    // Check if tournament exists
+    const tournament = await db('tournaments')
+      .where({ id: tournamentId })
+      .first();
+    
+    if (!tournament) {
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+    
+    // Get match results
+    const results = await db('match_results')
+      .where({ 
+        tournament_id: tournamentId,
+        match_id: matchId
+      })
+      .orderBy('placement', 'asc');
+    
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'No results found for this match' });
+    }
+    
+    // Get team names
+    const teamIds = results.map(result => result.team_id);
+    const teams = await db('teams')
+      .whereIn('id', teamIds)
+      .select('id', 'name', 'tag');
+    
+    const teamMap = {};
+    teams.forEach(team => {
+      teamMap[team.id] = team;
+    });
+    
+    // Add team names to results
+    const resultsWithTeams = results.map(result => ({
+      ...result,
+      team_name: teamMap[result.team_id]?.name || `Team ${result.team_id.substring(0, 8)}`,
+      team_tag: teamMap[result.team_id]?.tag || null
+    }));
+    
+    res.json({
+      data: {
+        match_id: matchId,
+        tournament_id: tournamentId,
+        results: resultsWithTeams
+      }
+    });
+  } catch (error) {
+    console.error(`Error retrieving match results for tournament ${req.params.id}, match ${req.params.matchId}:`, error);
+    res.status(500).json({ 
+      error: 'Error retrieving match results',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Tournament Leaderboard
+ */
+
+// Get tournament leaderboard
 router.get('/:id/leaderboard', async (req, res) => {
   try {
     const { id } = req.params;
@@ -980,11 +1012,7 @@ router.get('/:id/leaderboard', async (req, res) => {
   }
 });
 
-/**
- * @route POST /api/tournaments/:id/calculate-standings
- * @desc Calculate tournament standings
- * @access Private
- */
+// Calculate tournament standings
 router.post('/:id/calculate-standings', authenticateJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -1027,7 +1055,7 @@ router.post('/:id/calculate-standings', authenticateJWT, async (req, res) => {
     const matchesData = await Promise.all(matchPromises);
     
     // Calculate standings based on tournament scoring system
-    const standings = calculateTournamentStandings(tournament, matchesData, tournamentTeams);
+    const standings = calculateTournamentStandings(tournament, matchesData, tournamentTeams, registeredMatches);
     
     // Save standings to database
     await db('tournament_standings')
@@ -1045,6 +1073,12 @@ router.post('/:id/calculate-standings', authenticateJWT, async (req, res) => {
         tournamentName: tournament.name,
         updatedAt: new Date()
       });
+    }
+    
+    // Clear cache for this tournament
+    if (tournamentCache.data[id]) {
+      delete tournamentCache.data[id];
+      delete tournamentCache.timestamp[id];
     }
     
     res.json({
@@ -1068,9 +1102,10 @@ router.post('/:id/calculate-standings', authenticateJWT, async (req, res) => {
  * @param {Object} tournament - Tournament data
  * @param {Array} matchesData - Array of match data
  * @param {Array} tournamentTeams - Array of team data
+ * @param {Array} registeredMatches - Array of registered matches from database
  * @returns {Array} Calculated standings
  */
-function calculateTournamentStandings(tournament, matchesData, tournamentTeams) {
+function calculateTournamentStandings(tournament, matchesData, tournamentTeams, registeredMatches) {
   // Initialize standings object
   const standings = {};
   
@@ -1122,8 +1157,8 @@ function calculateTournamentStandings(tournament, matchesData, tournamentTeams) 
       const playerAccountIds = participants.map(p => p.attributes.stats.playerId);
       
       // Try to identify team by matching players with tournament teams
-      // In a real implementation, you'd query the database for player-team relationships
-      // This is a simplified version
+      // In a real implementation, we'd query the database for player-team relationships
+      // This is a simplified version - for a real implementation we should use the improved identifyTeamByPlayers method
       const teamId = identifyTeamByPlayers(playerAccountIds, tournamentTeams);
       if (!teamId) {
         return; // Skip if team not identified
@@ -1183,6 +1218,16 @@ function calculateTournamentStandings(tournament, matchesData, tournamentTeams) 
       standings[teamId].totalDamage += teamDamage;
       standings[teamId].bestPlacement = Math.min(standings[teamId].bestPlacement, teamRank);
       standings[teamId].worstPlacement = Math.max(standings[teamId].worstPlacement, teamRank);
+      
+      // Update team points in tournament_teams table
+      // This will be moved to a separate function later
+      db('tournament_teams')
+        .where({
+          tournament_id: tournament.id,
+          team_id: teamId
+        })
+        .update({ points: db.raw('points + ?', [matchPoints]) })
+        .catch(err => console.error(`Error updating points for team ${teamId}:`, err));
     });
   });
   
@@ -1230,20 +1275,33 @@ function calculateTournamentStandings(tournament, matchesData, tournamentTeams) 
 /**
  * Identify team by matching players with tournament teams
  * @param {Array} playerAccountIds - Array of player account IDs
- * @param {Array} tournamentTeams - Array of team data
+ * @param {Object} playerToTeam - Mapping of player IDs to team IDs
  * @returns {string|null} Team ID or null if no match found
  */
-function identifyTeamByPlayers(playerAccountIds, tournamentTeams) {
-  // In a real implementation, you'd query the database for player-team relationships
-  // This is a simplified placeholder version that would be replaced with actual DB queries
+function identifyTeamByPlayers(playerAccountIds, playerToTeam) {
+  // Count matches per team
+  const teamMatches = {};
   
-  // For now, since we don't have the team-player relationships,
-  // return a random team ID for demonstration purposes
-  if (tournamentTeams.length > 0) {
-    return tournamentTeams[Math.floor(Math.random() * tournamentTeams.length)].team_id;
-  }
+  playerAccountIds.forEach(playerId => {
+    const teamId = playerToTeam[playerId];
+    if (teamId) {
+      teamMatches[teamId] = (teamMatches[teamId] || 0) + 1;
+    }
+  });
   
-  return null;
+  // Find the team with the most matches
+  let bestTeamId = null;
+  let bestMatchCount = 0;
+  
+  Object.entries(teamMatches).forEach(([teamId, count]) => {
+    if (count > bestMatchCount) {
+      bestTeamId = teamId;
+      bestMatchCount = count;
+    }
+  });
+  
+  // Require at least 2 players to match to consider it a valid team match
+  return bestMatchCount >= 2 ? bestTeamId : null;
 }
 
 module.exports = router;

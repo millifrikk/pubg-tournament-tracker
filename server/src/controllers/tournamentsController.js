@@ -1,68 +1,98 @@
-// server/src/controllers/tournamentsController.js
 const { db } = require('../db/connection');
-const pubgApiService = require('../services/pubgApiServiceEnhanced');
 
 const tournamentsController = {
+  /**
+   * Get teams with player counts for a tournament
+   */
+  getTournamentTeamsWithPlayers: async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Check if tournament exists
+      const tournament = await db('tournaments')
+        .where({ id })
+        .first();
+      
+      if (!tournament) {
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+      
+      // Get teams with player counts
+      const teams = await db('tournament_teams')
+        .select(
+          'teams.id', 
+          'teams.name', 
+          'teams.tag',
+          'teams.logo_url',
+          'tournament_teams.seed_number',
+          'tournament_teams.points',
+          db.raw('COUNT(DISTINCT players.id) as player_count')
+        )
+        .join('teams', 'tournament_teams.team_id', 'teams.id')
+        .leftJoin('players', 'players.team_id', 'teams.id')
+        .where({ 'tournament_teams.tournament_id': id })
+        .groupBy(
+          'teams.id', 
+          'teams.name', 
+          'teams.tag', 
+          'teams.logo_url',
+          'tournament_teams.seed_number',
+          'tournament_teams.points'
+        )
+        .orderBy('tournament_teams.points', 'desc');
+      
+      res.json({ 
+        data: teams,
+        meta: {
+          count: teams.length,
+          tournamentId: id
+        }
+      });
+    } catch (error) {
+      console.error(`Error getting teams for tournament ${req.params.id}:`, error);
+      res.status(500).json({ error: 'Failed to get tournament teams' });
+    }
+  },
+
   /**
    * Get all tournaments
    */
   getAllTournaments: async (req, res) => {
     try {
-      const query = `
-        SELECT 
-          t.*, 
-          COUNT(DISTINCT tt.team_id) as team_count,
-          COUNT(DISTINCT tm.id) as match_count
-        FROM tournaments t
-        LEFT JOIN tournament_teams tt ON t.id = tt.tournament_id
-        LEFT JOIN custom_matches tm ON t.id = tm.tournament_id
-        GROUP BY t.id
-        ORDER BY t.start_date DESC
-      `;
+      const { limit = 20, offset = 0, active, public } = req.query;
       
-      const result = await db.raw(query);
-      const tournaments = result.rows || [];
-
-      res.json({ data: tournaments });
+      // Build query
+      let query = db('tournaments')
+        .select('id', 'name', 'description', 'start_date', 'end_date', 'format', 'scoring_system', 'is_active', 'is_public', 'created_at')
+        .orderBy('created_at', 'desc')
+        .limit(parseInt(limit, 10))
+        .offset(parseInt(offset, 10));
+      
+      // Add filters if provided
+      if (active !== undefined) {
+        query = query.where('is_active', active === 'true');
+      }
+      
+      if (public !== undefined) {
+        query = query.where('is_public', public === 'true');
+      }
+      
+      const tournaments = await query;
+      
+      res.json({
+        data: tournaments,
+        meta: {
+          limit: parseInt(limit, 10),
+          offset: parseInt(offset, 10),
+          count: tournaments.length
+        }
+      });
     } catch (error) {
       console.error('Error getting tournaments:', error);
-      res.status(500).json({ error: 'Failed to get tournaments' });
-    }
-  },
-
-  /**
-   * Create a new tournament
-   */
-  createTournament: async (req, res) => {
-    try {
-      const { name, startDate, endDate, description } = req.body;
-      
-      if (!name || !startDate || !endDate) {
-        return res.status(400).json({ error: 'Name, start date, and end date are required' });
-      }
-
-      // Extract user ID from JWT token (added by auth middleware)
-      const organizerId = req.user.id;
-      
-      // Create tournament
-      const [tournament] = await db('tournaments')
-        .insert({
-          name,
-          description,
-          organizer_id: organizerId,
-          start_date: new Date(startDate),
-          end_date: new Date(endDate),
-          format: 'standard',
-          scoring_system: 'super',
-          is_active: true,
-          is_public: true
-        })
-        .returning('*');
-      
-      res.status(201).json({ data: tournament });
-    } catch (error) {
-      console.error('Error creating tournament:', error);
-      res.status(500).json({ error: 'Failed to create tournament' });
+      res.status(500).json({ 
+        error: 'Error retrieving tournaments',
+        details: error.message
+      });
     }
   },
 
@@ -73,84 +103,169 @@ const tournamentsController = {
     try {
       const { id } = req.params;
       
-      // Get tournament with team and match counts
-      const query = `
-        SELECT 
-          t.*, 
-          COUNT(DISTINCT tt.team_id) as team_count,
-          COUNT(DISTINCT tm.id) as match_count
-        FROM tournaments t
-        LEFT JOIN tournament_teams tt ON t.id = tt.tournament_id
-        LEFT JOIN custom_matches tm ON t.id = tm.tournament_id
-        WHERE t.id = $1
-        GROUP BY t.id
-      `;
-      
-      const result = await db.raw(query, [id]);
-      const tournament = result.rows && result.rows.length > 0 ? result.rows[0] : null;
-      
-      if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
-      }
-      
-      res.json({ data: tournament });
-    } catch (error) {
-      console.error(`Error getting tournament ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to get tournament' });
-    }
-  },
-
-  /**
-   * Update tournament
-   */
-  updateTournament: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { name, startDate, endDate, description, isActive, isPublic } = req.body;
-      
+      // Get tournament
       const tournament = await db('tournaments')
         .where({ id })
         .first();
       
       if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
+        return res.status(404).json({ 
+          error: 'Tournament not found',
+          data: { message: 'The requested tournament could not be found' }
+        });
       }
       
-      // Check if user is the organizer
-      if (tournament.organizer_id !== req.user.id) {
-        return res.status(403).json({ error: 'Not authorized to update this tournament' });
+      // Get teams for this tournament
+      const teams = await db('tournament_teams')
+        .select(
+          'tournament_teams.seed_number', 
+          'tournament_teams.is_active', 
+          'tournament_teams.points',
+          'teams.id', 
+          'teams.name', 
+          'teams.tag', 
+          'teams.logo_url'
+        )
+        .join('teams', 'tournament_teams.team_id', 'teams.id')
+        .where({ 'tournament_teams.tournament_id': id });
+      
+      // Get matches for this tournament
+      const matches = await db('custom_matches')
+        .where({ tournament_id: id })
+        .orderBy('match_number', 'asc');
+      
+      // Get standings if they exist
+      const standings = await db('tournament_standings')
+        .where({ tournament_id: id })
+        .orderBy('calculated_at', 'desc')
+        .first();
+      
+      // Prepare response data
+      const responseData = {
+        data: {
+          ...tournament,
+          teams,
+          matches,
+          standings: standings ? standings.standings : null
+        }
+      };
+      
+      // Send response
+      res.json(responseData);
+    } catch (error) {
+      console.error(`Error getting tournament with ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: 'Error retrieving tournament',
+        details: error.message
+      });
+    }
+  },
+
+  /**
+   * Create tournament
+   */
+  createTournament: async (req, res) => {
+    try {
+      const {
+        name,
+        description,
+        startDate,
+        endDate,
+        format,
+        scoringSystem,
+        customScoringTable,
+        isActive = true,
+        isPublic = true
+      } = req.body;
+      
+      // Get organizer ID from authenticated user
+      const organizerId = req.user.id;
+      console.log('Creating tournament with organizer ID:', organizerId);
+      
+      // Validate that we have a valid UUID
+      if (!organizerId || organizerId === '00000000-0000-0000-0000-000000000000') {
+        console.error('Invalid organizer ID:', organizerId);
+        return res.status(400).json({ 
+          error: 'Valid user ID required to create tournament',
+          details: 'Authentication issue: Invalid or missing user ID'
+        });
       }
       
-      // Build update object
-      const updateData = {};
-      if (name !== undefined) updateData.name = name;
-      if (description !== undefined) updateData.description = description;
-      if (startDate !== undefined) updateData.start_date = new Date(startDate);
-      if (endDate !== undefined) updateData.end_date = new Date(endDate);
-      if (isActive !== undefined) updateData.is_active = isActive;
-      if (isPublic !== undefined) updateData.is_public = isPublic;
-      updateData.updated_at = new Date();
+      // Validate required fields
+      const missingFields = [];
+      if (!name) missingFields.push('name');
+      if (!startDate) missingFields.push('startDate');
+      if (!endDate) missingFields.push('endDate');
+      if (!format) missingFields.push('format');
+      if (!scoringSystem) missingFields.push('scoringSystem');
       
-      // Update tournament
-      const [updatedTournament] = await db('tournaments')
-        .where({ id })
-        .update(updateData)
+      if (missingFields.length > 0) {
+        return res.status(400).json({ 
+          error: `Missing required fields: ${missingFields.join(', ')}`,
+          details: 'Please provide all required fields to create a tournament'
+        });
+      }
+      
+      // Create tournament
+      const tournamentData = {
+        name,
+        description,
+        organizer_id: organizerId,
+        start_date: new Date(startDate),
+        end_date: new Date(endDate),
+        format,
+        scoring_system: scoringSystem,
+        custom_scoring_table: customScoringTable ? JSON.stringify(customScoringTable) : null,
+        is_active: isActive,
+        is_public: isPublic
+      };
+        
+      const [tournament] = await db('tournaments')
+        .insert(tournamentData)
         .returning('*');
       
-      res.json({ data: updatedTournament });
+      res.status(201).json({
+        message: 'Tournament created successfully',
+        data: tournament
+      });
     } catch (error) {
-      console.error(`Error updating tournament ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to update tournament' });
+      console.error('Error creating tournament:', error);
+      
+      // More specific error messages
+      if (error.code === '23503') {
+        return res.status(400).json({ 
+          error: 'Database constraint error. Please check that all referenced IDs are valid.' 
+        });
+      }
+      
+      if (error.code === '23505') {
+        return res.status(409).json({ 
+          error: 'A tournament with this name already exists' 
+        });
+      }
+      
+      // Check for date format issues
+      if (error.message && error.message.includes('date')) {
+        return res.status(400).json({ 
+          error: 'Invalid date format. Please use a valid date format.' 
+        });
+      }
+      
+      res.status(500).json({ 
+        error: 'Error creating tournament',
+        details: error.message
+      });
     }
   },
 
   /**
-   * Delete tournament
+   * Get players from all teams in a tournament
    */
-  deleteTournament: async (req, res) => {
+  getTournamentPlayers: async (req, res) => {
     try {
       const { id } = req.params;
       
+      // Check if tournament exists
       const tournament = await db('tournaments')
         .where({ id })
         .first();
@@ -159,39 +274,26 @@ const tournamentsController = {
         return res.status(404).json({ error: 'Tournament not found' });
       }
       
-      // Check if user is the organizer
-      if (tournament.organizer_id !== req.user.id) {
-        return res.status(403).json({ error: 'Not authorized to delete this tournament' });
-      }
+      // Get players from all teams in this tournament
+      const players = await db('players')
+        .select('players.*', 'teams.name as team_name')
+        .join('teams', 'players.team_id', 'teams.id')
+        .join('tournament_teams', 'teams.id', 'tournament_teams.team_id')
+        .where('tournament_teams.tournament_id', id);
       
-      await db('tournaments')
-        .where({ id })
-        .delete();
-      
-      res.json({ message: 'Tournament deleted successfully' });
+      res.json({
+        data: players,
+        meta: {
+          count: players.length,
+          tournamentId: id
+        }
+      });
     } catch (error) {
-      console.error(`Error deleting tournament ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to delete tournament' });
-    }
-  },
-
-  /**
-   * Get teams in tournament
-   */
-  getTournamentTeams: async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      const teams = await db('tournament_teams')
-        .select('teams.*', 'tournament_teams.points')
-        .join('teams', 'tournament_teams.team_id', 'teams.id')
-        .where({ 'tournament_teams.tournament_id': id })
-        .orderBy('tournament_teams.points', 'desc');
-      
-      res.json({ data: teams });
-    } catch (error) {
-      console.error(`Error getting teams for tournament ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to get tournament teams' });
+      console.error(`Error getting players for tournament ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: 'Error retrieving tournament players',
+        details: error.message
+      });
     }
   },
 
@@ -200,43 +302,121 @@ const tournamentsController = {
    */
   addTeamToTournament: async (req, res) => {
     try {
-      const { id: tournamentId } = req.params;
+      const { id } = req.params;
       const { teamId } = req.body;
       
+      console.log(`Adding team ${teamId} to tournament ${id}`);
+      
+      if (!teamId) {
+        return res.status(400).json({ error: 'Team ID is required' });
+      }
+      
+      // Check if tournament exists
       const tournament = await db('tournaments')
-        .where({ id: tournamentId })
+        .where({ id })
         .first();
       
       if (!tournament) {
+        console.log(`Tournament not found with ID: ${id}`);
         return res.status(404).json({ error: 'Tournament not found' });
       }
       
-      // Check if user is the organizer
-      if (tournament.organizer_id !== req.user.id) {
-        return res.status(403).json({ error: 'Not authorized to modify this tournament' });
+      // Check if user is the organizer or an admin
+      const userId = req.user.id;
+      const userRole = req.user.role;
+      
+      if (userRole !== 'admin' && tournament.organizer_id !== userId) {
+        console.log('Authorization failed: User is not the organizer or an admin');
+        return res.status(403).json({ 
+          error: 'Not authorized to add teams to this tournament',
+          details: 'Only the tournament organizer or an admin can add teams'
+        });
       }
       
-      // Check if team already exists in tournament
+      // Check if team exists
+      const team = await db('teams')
+        .where({ id: teamId })
+        .first();
+      
+      if (!team) {
+        console.log(`Team not found with ID: ${teamId}`);
+        return res.status(404).json({ error: 'Team not found' });
+      }
+      
+      // Check if team is already in this tournament
       const existingTeam = await db('tournament_teams')
-        .where({ tournament_id: tournamentId, team_id: teamId })
+        .where({ 
+          tournament_id: id,
+          team_id: teamId
+        })
         .first();
       
       if (existingTeam) {
-        return res.status(400).json({ error: 'Team is already in this tournament' });
+        console.log(`Team ${teamId} is already in tournament ${id}`);
+        return res.status(409).json({ 
+          error: 'Team is already in this tournament',
+          details: `Team '${team.name}' is already registered in this tournament`
+        });
       }
       
-      // Add team to tournament
-      await db('tournament_teams')
-        .insert({
-          tournament_id: tournamentId,
-          team_id: teamId,
-          points: 0
-        });
+      // Get next seed number
+      const lastTeam = await db('tournament_teams')
+        .where({ tournament_id: id })
+        .orderBy('seed_number', 'desc')
+        .first();
       
-      res.json({ message: 'Team added to tournament successfully' });
+      const seedNumber = lastTeam ? lastTeam.seed_number + 1 : 1;
+      
+      // Add team to tournament
+      const [addedTeam] = await db('tournament_teams')
+        .insert({
+          tournament_id: id,
+          team_id: teamId,
+          seed_number: seedNumber,
+          is_active: true,
+          points: 0 // Initialize with zero points
+        })
+        .returning('*');
+      
+      // Get full team details
+      const teamWithDetails = await db('tournament_teams')
+        .select(
+          'tournament_teams.seed_number', 
+          'tournament_teams.is_active', 
+          'tournament_teams.points',
+          'teams.id', 
+          'teams.name', 
+          'teams.tag', 
+          'teams.logo_url'
+        )
+        .join('teams', 'tournament_teams.team_id', 'teams.id')
+        .where({ 
+          'tournament_teams.tournament_id': id,
+          'tournament_teams.team_id': teamId
+        })
+        .first();
+      
+      // Emit team added event via WebSocket if available
+      if (req.io) {
+        req.io.emitTournamentUpdate(id, {
+          type: 'TEAM_ADDED',
+          tournamentId: id,
+          teamId: teamId,
+          teamName: team.name,
+          timestamp: new Date()
+        });
+      }
+      
+      res.status(201).json({
+        message: 'Team added to tournament successfully',
+        data: teamWithDetails
+      });
     } catch (error) {
       console.error(`Error adding team to tournament ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to add team to tournament' });
+      res.status(500).json({ 
+        error: 'Error adding team to tournament',
+        details: error.message
+      });
     }
   },
 
@@ -245,176 +425,61 @@ const tournamentsController = {
    */
   removeTeamFromTournament: async (req, res) => {
     try {
-      const { id: tournamentId, teamId } = req.params;
+      const { id, teamId } = req.params;
       
+      // Check if tournament exists
       const tournament = await db('tournaments')
-        .where({ id: tournamentId })
+        .where({ id })
         .first();
       
       if (!tournament) {
         return res.status(404).json({ error: 'Tournament not found' });
       }
       
-      // Check if user is the organizer
-      if (tournament.organizer_id !== req.user.id) {
-        return res.status(403).json({ error: 'Not authorized to modify this tournament' });
+      // Check if user is the organizer or an admin
+      if (req.user.role !== 'admin' && tournament.organizer_id !== req.user.id) {
+        return res.status(403).json({ error: 'Not authorized to remove teams from this tournament' });
       }
       
+      // Check if team is in this tournament
+      const teamInTournament = await db('tournament_teams')
+        .where({ 
+          tournament_id: id,
+          team_id: teamId
+        })
+        .first();
+      
+      if (!teamInTournament) {
+        return res.status(404).json({ error: 'Team not found in this tournament' });
+      }
+      
+      // Remove team from tournament
       await db('tournament_teams')
-        .where({ tournament_id: tournamentId, team_id: teamId })
+        .where({ 
+          tournament_id: id,
+          team_id: teamId
+        })
         .delete();
       
-      res.json({ message: 'Team removed from tournament successfully' });
-    } catch (error) {
-      console.error(`Error removing team ${req.params.teamId} from tournament ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to remove team from tournament' });
-    }
-  },
-
-  /**
-   * Get matches in tournament
-   */
-  getTournamentMatches: async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      const matches = await db('custom_matches')
-        .where({ tournament_id: id })
-        .orderBy('match_number', 'asc');
-      
-      res.json({ data: matches });
-    } catch (error) {
-      console.error(`Error getting matches for tournament ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to get tournament matches' });
-    }
-  },
-
-  /**
-   * Add match to tournament
-   */
-  addMatchToTournament: async (req, res) => {
-    try {
-      const { id: tournamentId } = req.params;
-      const { matchId, matchDate, mapName, gameMode, matchNumber } = req.body;
-      
-      const tournament = await db('tournaments')
-        .where({ id: tournamentId })
-        .first();
-      
-      if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
-      }
-      
-      // Check if user is the organizer
-      if (tournament.organizer_id !== req.user.id) {
-        return res.status(403).json({ error: 'Not authorized to modify this tournament' });
-      }
-      
-      // Check if match already exists
-      const existingMatch = await db('custom_matches')
-        .where({ match_id: matchId, tournament_id: tournamentId })
-        .first();
-      
-      if (existingMatch) {
-        return res.status(400).json({ error: 'Match is already in this tournament' });
-      }
-      
-      // Get next match number if not provided
-      let nextMatchNumber = matchNumber;
-      if (!nextMatchNumber) {
-        const lastMatch = await db('custom_matches')
-          .where({ tournament_id: tournamentId })
-          .orderBy('match_number', 'desc')
-          .first();
-        
-        nextMatchNumber = lastMatch ? lastMatch.match_number + 1 : 1;
-      }
-      
-      // Add match to tournament
-      await db('custom_matches')
-        .insert({
-          match_id: matchId,
-          tournament_id: tournamentId,
-          registered_by: req.user.id,
-          match_number: nextMatchNumber,
-          stage: 'group',
-          map_name: mapName,
-          game_mode: gameMode,
-          registered_at: new Date(matchDate || new Date())
+      // Emit team removed event via WebSocket if available
+      if (req.io) {
+        req.io.emitTournamentUpdate(id, {
+          type: 'TEAM_REMOVED',
+          tournamentId: id,
+          teamId: teamId,
+          timestamp: new Date()
         });
-      
-      res.json({ message: 'Match added to tournament successfully' });
-    } catch (error) {
-      console.error(`Error adding match to tournament ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to add match to tournament' });
-    }
-  },
-
-  /**
-   * Remove match from tournament
-   */
-  removeMatchFromTournament: async (req, res) => {
-    try {
-      const { id: tournamentId, matchId } = req.params;
-      
-      const tournament = await db('tournaments')
-        .where({ id: tournamentId })
-        .first();
-      
-      if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found' });
       }
       
-      // Check if user is the organizer
-      if (tournament.organizer_id !== req.user.id) {
-        return res.status(403).json({ error: 'Not authorized to modify this tournament' });
-      }
-      
-      await db('custom_matches')
-        .where({ id: matchId, tournament_id: tournamentId })
-        .delete();
-      
-      res.json({ message: 'Match removed from tournament successfully' });
+      res.json({
+        message: 'Team removed from tournament successfully'
+      });
     } catch (error) {
-      console.error(`Error removing match from tournament ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to remove match from tournament' });
-    }
-  },
-
-  /**
-   * Get tournament leaderboard
-   */
-  getTournamentLeaderboard: async (req, res) => {
-    try {
-      const { id } = req.params;
-      
-      // Get tournament teams with their points
-      const query = `
-        SELECT 
-          t.id as team_id,
-          t.name as team_name,
-          t.logo_url,
-          t.tag as abbreviation,
-          tt.points as total_points,
-          COUNT(DISTINCT mr.tournament_match_id) as matches_played,
-          SUM(mr.kills) as total_kills,
-          SUM(CASE WHEN mr.placement = 1 THEN 1 ELSE 0 END) as wins,
-          ROUND(AVG(mr.placement), 2) as avg_placement
-        FROM teams t
-        JOIN tournament_teams tt ON t.id = tt.team_id AND tt.tournament_id = $1
-        LEFT JOIN match_results mr ON t.id = mr.team_id
-        LEFT JOIN custom_matches tm ON mr.tournament_match_id = tm.id AND tm.tournament_id = $1
-        GROUP BY t.id, t.name, t.logo_url, t.tag, tt.points
-        ORDER BY tt.points DESC
-      `;
-      
-      const result = await db.raw(query, [id]);
-      const leaderboard = result.rows || [];
-      
-      res.json({ data: leaderboard });
-    } catch (error) {
-      console.error(`Error getting leaderboard for tournament ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to get tournament leaderboard' });
+      console.error(`Error removing team from tournament ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: 'Error removing team from tournament',
+        details: error.message
+      });
     }
   }
 };

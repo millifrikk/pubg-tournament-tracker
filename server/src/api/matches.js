@@ -64,9 +64,9 @@ router.post('/search', async (req, res) => {
       timeRange: ['24h', '48h', '7d', '14d'].includes(timeRange) ? timeRange : '24h',
       startDate,
       endDate,
-      gameMode,
-      mapName,
-      customMatchOnly: Boolean(customMatchOnly),
+      gameMode: gameMode || 'all',
+      mapName: mapName || 'all',
+      customMatchOnly: customMatchOnly !== false,
       userId // Add authenticated user ID to criteria
     };
 
@@ -79,7 +79,7 @@ router.post('/search', async (req, res) => {
         const timeoutId = setTimeout(() => {
           console.log('Search operation timed out');
           reject(new Error('Search operation timed out'));
-        }, 60000); // 1 minute timeout
+        }, 120000); // Increase timeout to 2 minutes
 
         try {
           const matches = await pubgApiService.searchCustomMatches(limitedCriteria);

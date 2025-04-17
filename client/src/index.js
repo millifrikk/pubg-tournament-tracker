@@ -5,6 +5,8 @@ import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import axios from 'axios';
 import './index.css';
+import './styles/dark-theme-fixes.css'; // Import enhanced contrast fixes for dark theme
+import './styles/dashboard-theme-fixes.css'; // Import dashboard-specific fixes
 
 // Global axios configuration
 axios.defaults.timeout = 25000; // 25 seconds default timeout
